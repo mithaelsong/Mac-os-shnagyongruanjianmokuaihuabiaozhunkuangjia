@@ -1,22 +1,15 @@
-// 功能6: 调用模块的start
-// 对应: 按依赖顺序调用已注册模块的 start() 方法
-// 优先级: P0
+// Function 6: Module Start
+// Description: Call start() on registered modules in dependency order
+// Priority: P0
 
 import Foundation
 import os
 
-// MARK: - XRZModule 协议
-/// 模块生命周期协议，所有模块必须实现此协议
-public protocol XRZModule {
-    /// 启动模块，模块初始化完成后调用
-    func start() throws
-    
-    /// 停止模块，模块卸载前调用
-    func stop() throws
-}
+// XRZModule 协议定义于 05_按顺序加载Module.swift
+// Includes init() + start() + stop() + services
 
-// MARK: - 模块启动错误
-/// 模块启动过程中可能遇到的错误
+// MARK: - Module Start Error
+/// Errors that may occur during module startup
 public enum ModuleStartError: Error, CustomStringConvertible {
     case moduleNotFound(name: String)
     case moduleNotConformingToProtocol(name: String)
@@ -27,22 +20,22 @@ public enum ModuleStartError: Error, CustomStringConvertible {
     public var description: String {
         switch self {
         case .moduleNotFound(let name):
-            return "模块未找到: \(name)"
+            return "Module not found: \(name)"
         case .moduleNotConformingToProtocol(let name):
-            return "模块 \(name) 未实现 XRZModule 协议"
+            return "Module \(name) does not conform to XRZModule"
         case .dependencyMissing(let name, let dep):
-            return "模块 \(name) 缺少依赖: \(dep)"
+            return "Module \(name) missing dependency: \(dep)"
         case .dependencyCycle(let cycle):
-            return "依赖循环: \(cycle.joined(separator: " -> "))"
+            return "dependency cycle: \(cycle.joined(separator: " -> "))"
         case .simulatedFailure(let name):
-            return "模块启动模拟失败: \(name)"
+            return "simulated start failure for module: \(name)"
         }
     }
 }
 
-// MARK: - 启动结果
+// MARK: - Start Results
 
-/// 单个模块启动结果
+/// 单个ModuleStart Results
 public enum ModuleStartResult {
     case success(alreadyStarted: Bool)
     case failure(reason: ModuleStartFailureReason)
@@ -53,7 +46,7 @@ public enum ModuleStartResult {
     }
 }
 
-/// 单个模块启动失败原因
+/// Single module start failure reason
 public enum ModuleStartFailureReason {
     case notRegistered
     case dependencyFailed(name: String)
@@ -61,33 +54,33 @@ public enum ModuleStartFailureReason {
     case dependencyCycle(cycle: [String])
 }
 
-/// 批量启动所有模块的结果
+/// Batch start result for all modules
 public enum StartAllResult {
     case success(started: [String], failed: [(String, Error)])
     case failure(reason: StartAllFailureReason)
 }
 
-/// 批量启动失败原因
+/// Batch start failure reason
 public enum StartAllFailureReason {
     case dependencyCycle(cycle: [String])
 }
 
-// MARK: - 拓扑排序结果
+// MARK: - Topology Sort Result
 private enum TopologySortResult {
     case success(order: [String])
     case failure(cycle: [String])
 }
 
 // MARK: - ModuleStarter
-/// 模块启动器 (功能6)
-/// 负责按依赖顺序调用已注册模块的 start() 方法
-/// 使用拓扑排序确保启动顺序正确
-/// 单个模块启动失败不影响其他模块
+/// Module Starter (Function6)
+/// Calls start() on registered modules in dependency order
+/// Uses topological sort to ensure correct start order
+/// A single module failure does not affect other modules
 public final class ModuleStarter {
     private let registry: ModuleRegistry
     private let logger: ModuleLogger
     
-    /// 线程安全的已启动模块记录
+    /// Thread-safe set of started modules
     private final class StartedStorage: @unchecked Sendable {
         var started: Set<String> = []
         var lock = os_unfair_lock()
@@ -95,39 +88,39 @@ public final class ModuleStarter {
     
     private let startedStorage = StartedStorage()
     
-    /// 初始化启动器
+    /// Initialize starter
     /// - Parameters:
-    ///   - registry: 模块注册表（功能8）
-    ///   - logger: 模块日志记录器（功能2）
+    ///   - registry: Module registry (Function 8)
+    ///   - logger: Module logger (Function 2)
     public init(registry: ModuleRegistry, logger: ModuleLogger) {
         self.registry = registry
         self.logger = logger
     }
     
-    // MARK: - 启动所有模块
+    // MARK: - Start All Modules
     
-    /// 启动所有已注册模块
-    /// 按拓扑排序顺序，先启动依赖模块，再启动当前模块
-    /// 单个模块失败不影响其他模块继续启动
-    /// - Returns: 启动结果，包含成功启动和失败的模块列表
+    /// Start all registered modules
+    /// Topological sort order: dependencies first, then current module
+    /// A single module failure does not prevent others from starting
+    /// - Returns: Start result with lists of started and failed modules
     public func startAllModules() -> StartAllResult {
         let allNames = registry.allModuleNames
         guard !allNames.isEmpty else {
-            logger.info("没有已注册的模块，无需启动")
+            logger.info("No registered modules, nothing to start")
             return .success(started: [], failed: [])
         }
         
-        logger.info("准备启动 \(allNames.count) 个已注册模块...")
+        logger.info("Preparing to start \(allNames.count) registered modules...")
         
         // 拓扑排序
         let sortResult = topologicalSort(allNames)
         switch sortResult {
         case .failure(let cycle):
-            logger.error("检测到依赖循环: \(cycle.joined(separator: " -> "))")
+            logger.error("Detected dependency cycle: \(cycle.joined(separator: " -> "))")
             return .failure(reason: .dependencyCycle(cycle: cycle))
             
         case .success(let order):
-            logger.info("启动顺序: \(order.joined(separator: " -> "))")
+            logger.info("Start order: \(order.joined(separator: " -> "))")
             
             var started: [String] = []
             var failed: [(String, Error)] = []
@@ -137,131 +130,139 @@ public final class ModuleStarter {
                     try startModuleInternal(name)
                     started.append(name)
                 } catch {
-                    logger.error("启动模块 \(name) 失败: \(error)")
+                    logger.error("Start module \(name) failed: \(error)")
                     failed.append((name, error))
                 }
             }
             
             if failed.isEmpty {
-                logger.info("所有 \(started.count) 个模块启动成功")
+                logger.info("All \(started.count) modules started successfully")
             } else {
-                logger.warning("\(started.count) 个模块启动成功，\(failed.count) 个失败")
+                logger.warning("\(started.count) modules started successfully, \(failed.count) failed")
             }
             
             return .success(started: started, failed: failed)
         }
     }
     
-    // MARK: - 启动单个模块
+    // MARK: - Start Single Module
     
-    /// 启动单个模块
-    /// 先递归启动该模块的所有依赖，再启动当前模块
-    /// - Parameter name: 模块名称
-    /// - Returns: 启动结果
+    /// Start Single Module
+    /// Recursively start dependencies, then the module itself
+    /// - Parameter name: Module name
+    /// - Returns: Start Results
     public func startModule(_ name: String) -> ModuleStartResult {
-        // 检查是否已注册
+        // Check if module is registered
         guard registry.isLoaded(name: name) else {
-            logger.error("无法启动模块 \(name)：未在注册表中注册")
+            logger.error("Cannot start module \(name): not registered")
             return .failure(reason: .notRegistered)
         }
         
-        // 检查是否已启动
+        // Check if already started
         if isStarted(name) {
-            logger.info("模块 \(name) 已启动，跳过")
+            logger.info("Module \(name) already started, skipping")
             return .success(alreadyStarted: true)
         }
         
-        logger.info("准备启动模块: \(name)")
+        logger.info("Preparing to start module: \(name)")
         
-        // 获取并启动依赖
+        // Start dependencies first
         let dependencies = getDependencies(for: name)
         if !dependencies.isEmpty {
-            logger.info("模块 \(name) 有 \(dependencies.count) 个依赖: \(dependencies)")
+            logger.info("Module \(name) has \(dependencies.count) dependencies: \(dependencies)")
         }
         
         for dep in dependencies {
-            // 检查依赖是否已注册
+            // Check if dependency is registered
             guard registry.isLoaded(name: dep) else {
-                logger.error("模块 \(name) 的依赖 \(dep) 未注册")
+                logger.error("Module \(name) depends on \(dep) not registered")
                 return .failure(reason: .dependencyFailed(name: dep))
             }
             
-            // 递归启动依赖
+            // Recursively start dependency
             if !isStarted(dep) {
                 let depResult = startModule(dep)
                 guard depResult.isSuccess else {
-                    logger.error("依赖 \(dep) 启动失败，中止 \(name) 的启动")
+                    logger.error("Dependency \(dep) start failed, aborting \(name) start")
                     return .failure(reason: .dependencyFailed(name: dep))
                 }
             }
         }
         
-        // 启动当前模块
+        // Start current module
         do {
             try startModuleInternal(name)
             return .success(alreadyStarted: false)
         } catch {
-            logger.error("启动模块 \(name) 失败: \(error)")
+            logger.error("Start module \(name) failed: \(error)")
             return .failure(reason: .startFailed(error: error))
         }
     }
     
-    // MARK: - 停止模块
+    // MARK: - Stop Module
     
-    /// 停止单个模块
-    /// - Parameter name: 模块名称
+    /// Stop a single module
+    /// - Parameter name: Module name
     public func stopModule(_ name: String) {
         guard isStarted(name) else {
-            logger.warning("模块 \(name) 未启动，无法停止")
+            logger.warning("Module \(name) not started, cannot stop")
             return
         }
         
         guard let module = registry.getModule(named: name) as? XRZModule else {
-            logger.error("模块 \(name) 未实现 XRZModule 协议")
+            logger.error("Module \(name) does not conform to XRZModule")
             return
         }
         
         do {
             try module.stop()
             markStopped(name)
-            logger.info("模块 \(name) 已停止")
+            logger.info("Module \(name) stopped")
         } catch {
-            logger.error("停止模块 \(name) 失败: \(error)")
+            logger.error("Stop module \(name) failed: \(error)")
         }
     }
     
-    // MARK: - 查询状态
+    // MARK: - Query Status
     
-    /// 检查模块是否已启动
+    /// Check if a module is started
     public func isStarted(_ name: String) -> Bool {
         os_unfair_lock_lock(&startedStorage.lock)
         defer { os_unfair_lock_unlock(&startedStorage.lock) }
         return startedStorage.started.contains(name)
     }
     
-    /// 获取已启动的模块列表
+    /// Get the list of started modules
     public var startedModules: [String] {
         os_unfair_lock_lock(&startedStorage.lock)
         defer { os_unfair_lock_unlock(&startedStorage.lock) }
         return Array(startedStorage.started)
     }
     
-    // MARK: - 私有方法
+    // MARK: - Private Methods
     
-    /// 内部启动方法（不检查依赖，仅执行 start()）
+    /// Internal start method (no dependency check, only calls start())
+    /// Skip if module is already started (supports pre-loading from Function 5)
     private func startModuleInternal(_ name: String) throws {
         guard let module = registry.getModule(named: name) as? XRZModule else {
             throw ModuleStartError.moduleNotConformingToProtocol(name: name)
         }
         
-        logger.info("正在启动模块: \(name)")
+        logger.info("Starting module: \(name)")
+        
+        // Skip if already started by Function 5
+        if isStarted(name) {
+            logger.info("Module \(name) already started, skipping duplicate start()")
+            return
+        }
+        
         try module.start()
         markStarted(name)
-        logger.info("模块 \(name) 启动成功")
+        logger.info("Module \(name) started successfully")
     }
     
-    /// 获取模块的依赖列表
-    /// 优先从 ModuleMetadata 获取，回退到 ConfigSystem
+    /// Get dependency list for a module
+    /// Prefer ModuleMetadata, fall back to ConfigSystem
     private func getDependencies(for name: String) -> [String] {
         if let metadata = registry.getMetadata(named: name) {
             return metadata.dependencies
@@ -269,34 +270,34 @@ public final class ModuleStarter {
         return ConfigSystem.shared.getModuleDependencies(name)
     }
     
-    /// 标记模块已启动
+    /// Mark module as started
     private func markStarted(_ name: String) {
         os_unfair_lock_lock(&startedStorage.lock)
         startedStorage.started.insert(name)
         os_unfair_lock_unlock(&startedStorage.lock)
     }
     
-    /// 标记模块已停止
+    /// Mark module as stopped
     private func markStopped(_ name: String) {
         os_unfair_lock_lock(&startedStorage.lock)
         startedStorage.started.remove(name)
         os_unfair_lock_unlock(&startedStorage.lock)
     }
     
-    /// 拓扑排序（Kahn 算法）
-    /// 将模块按依赖关系排序，确保依赖模块先于被依赖模块启动
+    /// Topological Sort (Kahn Algorithm)
+    /// Sort modules by dependencies, ensuring dependencies start first
     private func topologicalSort(_ names: [String]) -> TopologySortResult {
         var inDegree: [String: Int] = [:]
         var adjacency: [String: [String]] = [:]
         
-        // 初始化
+        // Initialize
         for name in names {
             inDegree[name] = 0
             adjacency[name] = []
         }
         
-        // 构建有向图：依赖 -> 被依赖
-        // 如果 B 依赖 A，则 A 必须先启动，图中 A -> B（A 指向 B）
+        // Build directed graph: Dependency -> Dependent
+        // If B depends on A, A starts first: graph edge A -> B
         for name in names {
             let deps = getDependencies(for: name)
             for dep in deps {
@@ -307,9 +308,9 @@ public final class ModuleStarter {
             }
         }
         
-        // Kahn 算法：从入度为 0 的节点开始
+        // Kahn: start with nodes that have in-degree 0
         var queue = names.filter { inDegree[$0] == 0 }
-        queue.sort() // 稳定排序，保证可预测性
+        queue.sort() // Stable sort for deterministic output
         
         var result: [String] = []
         
@@ -328,26 +329,30 @@ public final class ModuleStarter {
         if result.count == names.count {
             return .success(order: result)
         } else {
-            // 找出循环中的节点
+            // Find nodes in the cycle
             let remaining = names.filter { !result.contains($0) }
             return .failure(cycle: remaining)
         }
     }
 }
 
-// MARK: - 测试代码
+// MARK: - Test Code
 
-/// ModuleStarter 功能验证测试
+/// ModuleStarter Function验证测试
 /// 运行方式：在单元测试或 Playground 中调用 `ModuleStarterTests.runAllTests()`
 public enum ModuleStarterTests {
     
-    /// 测试用模拟模块
+    /// Mock module for testing
     final class TestModule: XRZModule {
         let name: String
         var shouldFail: Bool = false
         var startOrder: Int = 0
         static var globalCounter = 0
-        static var lock = os_unfair_lock()
+        static var aLock = os_unfair_lock()
+        
+        required init() {
+            self.name = "TestModule"
+        }
         
         init(name: String) {
             self.name = name
@@ -357,21 +362,21 @@ public enum ModuleStarterTests {
             if shouldFail {
                 throw ModuleStartError.simulatedFailure(name: name)
             }
-            Self.lock.lock()
+            os_unfair_lock_lock(&Self.aLock)
             Self.globalCounter += 1
             startOrder = Self.globalCounter
-            Self.lock.unlock()
+            os_unfair_lock_unlock(&Self.aLock)
         }
         
         func stop() throws {}
     }
     
-    /// 运行所有测试
+    /// Run all tests
     public static func runAllTests() {
-        // 重置计数器
+        // Reset counter
         TestModule.globalCounter = 0
         
-        // 清理全局注册表
+        // Clear global registry
         cleanupRegistry()
         
         testStartAllWithDependencies()
@@ -398,12 +403,12 @@ public enum ModuleStarterTests {
         testMultipleIndependentModules()
         cleanupRegistry()
         
-        print("\n🎉 所有 ModuleStarter 测试通过!")
+        print("\n🎉 All ModuleStarter tests passed!")
     }
     
-    // MARK: - 辅助方法
+    // MARK: - Helper Methods
     
-    /// 清理注册表中的所有模块
+    /// Remove all modules from registry
     private static func cleanupRegistry() {
         let names = ModuleRegistry.shared.allModuleNames
         for name in names {
@@ -411,13 +416,13 @@ public enum ModuleStarterTests {
         }
     }
     
-    // MARK: - 测试1: 按依赖顺序启动所有模块
+    // MARK: - Test 1: Start All With Dependencies
     
-    /// 测试拓扑排序启动顺序
-    /// 模块结构：A 依赖 B，B 依赖 C
-    /// 启动顺序应该是 C -> B -> A
+    /// Test topological sort start order
+    /// Module structure: A depends on B, B depends on C
+    /// Expected start order: C -> B -> A
     public static func testStartAllWithDependencies() {
-        print("\n🧪 测试1: 按依赖顺序启动所有模块")
+        print("\n🧪 Test 1: Start All With Dependencies")
         
         let registry = ModuleRegistry.shared
         let starter = ModuleStarter(registry: registry, logger: ModuleLogger(category: "TestStarter"))
@@ -454,30 +459,30 @@ public enum ModuleStarterTests {
         let result = starter.startAllModules()
         
         guard case .success(let started, let failed) = result else {
-            fatalError("❌ 测试1失败: 不应返回失败")
+            fatalError("❌ Test 1 failed: Should not return failure")
         }
         guard failed.isEmpty else {
-            fatalError("❌ 测试1失败: 不应有失败模块: \(failed)")
+            fatalError("❌ Test 1 failed: Should have no failures: \(failed)")
         }
         guard started == ["C", "B", "A"] else {
-            fatalError("❌ 测试1失败: 期望顺序 [C, B, A]，实际 \(started)")
+            fatalError("❌ Test 1 failed: Expected order [C, B, A], got \(started)")
         }
         
         guard moduleC.startOrder < moduleB.startOrder else {
-            fatalError("❌ 测试1失败: C 应在 B 之前启动")
+            fatalError("❌ Test 1 failed: C should start before B")
         }
         guard moduleB.startOrder < moduleA.startOrder else {
-            fatalError("❌ 测试1失败: B 应在 A 之前启动")
+            fatalError("❌ Test 1 failed: B should start before A")
         }
         
-        print("✅ 测试1通过: 依赖顺序 C -> B -> A 正确")
+        print("✅ Test 1 passed: Dependency order C -> B -> A correct")
     }
     
-    // MARK: - 测试2: 启动单个模块（自动启动依赖）
+    // MARK: - Test 2: Start Single Module (auto starts dependencies)
     
-    /// 测试 startModule 自动启动依赖
+    /// Test startModule automatically starts dependencies
     public static func testSingleModuleStart() {
-        print("\n🧪 测试2: 启动单个模块（自动启动依赖）")
+        print("\n🧪 Test 2: Start Single Module (auto starts dependencies)")
         
         let registry = ModuleRegistry.shared
         let starter = ModuleStarter(registry: registry, logger: ModuleLogger(category: "TestStarter"))
@@ -505,23 +510,23 @@ public enum ModuleStarterTests {
         let result = starter.startModule("X")
         
         guard result.isSuccess else {
-            fatalError("❌ 测试2失败: 启动 X 失败")
+            fatalError("❌ Test 2 failed: X start failed")
         }
         guard starter.isStarted("Y") else {
-            fatalError("❌ 测试2失败: 依赖 Y 应已启动")
+            fatalError("❌ Test 2 failed: Y should be started")
         }
         guard starter.isStarted("X") else {
-            fatalError("❌ 测试2失败: X 应已启动")
+            fatalError("❌ Test 2 failed: X should be started")
         }
         
-        print("✅ 测试2通过: 单个模块启动自动处理依赖")
+        print("✅ Test 2 passed: Single module start handles dependencies")
     }
     
-    // MARK: - 测试3: 失败处理（单个模块失败不影响其他）
+    // MARK: - Test 3: Failure Isolation
     
-    /// 测试失败隔离：一个模块失败不应阻止其他模块启动
+    /// Test failure isolation: one failure should not block others
     public static func testFailureHandling() {
-        print("\n🧪 测试3: 失败处理（失败隔离）")
+        print("\n🧪 Test 3: Failure Isolation")
         
         let registry = ModuleRegistry.shared
         let starter = ModuleStarter(registry: registry, logger: ModuleLogger(category: "TestStarter"))
@@ -560,29 +565,29 @@ public enum ModuleStarterTests {
         let result = starter.startAllModules()
         
         guard case .success(let started, let failed) = result else {
-            fatalError("❌ 测试3失败: 不应返回整体失败")
+            fatalError("❌ Test 3 failed: Should not return overall failure")
         }
         guard started.count == 2 else {
-            fatalError("❌ 测试3失败: 期望 2 个启动成功，实际 \(started.count)")
+            fatalError("❌ Test 3 failed: Expected 2 successes, got \(started.count)")
         }
         guard failed.count == 1 else {
-            fatalError("❌ 测试3失败: 期望 1 个失败，实际 \(failed.count)")
+            fatalError("❌ Test 3 failed: Expected 1 failure, got \(failed.count)")
         }
         guard failed.first?.0 == "Fail" else {
-            fatalError("❌ 测试3失败: 期望 Fail 模块失败，实际 \(failed)")
+            fatalError("❌ Test 3 failed: Expected Fail to fail, got \(failed)")
         }
         guard starter.isStarted("OK1") || starter.isStarted("OK2") else {
-            fatalError("❌ 测试3失败: 至少一个 OK 模块应已启动")
+            fatalError("❌ Test 3 failed: At least one OK module should be started")
         }
         
-        print("✅ 测试3通过: 失败隔离正常工作")
+        print("✅ Test 3 passed: Failure isolation works")
     }
     
-    // MARK: - 测试4: 循环依赖检测
+    // MARK: - Test 4: Circular Dependency Detection
     
-    /// 测试循环依赖检测
+    /// Test circular dependency detection
     public static func testCircularDependency() {
-        print("\n🧪 测试4: 循环依赖检测")
+        print("\n🧪 Test 4: Circular Dependency Detection")
         
         let registry = ModuleRegistry.shared
         let starter = ModuleStarter(registry: registry, logger: ModuleLogger(category: "TestStarter"))
@@ -610,19 +615,19 @@ public enum ModuleStarterTests {
         let result = starter.startAllModules()
         
         guard case .failure = result else {
-            fatalError("❌ 测试4失败: 应检测到循环依赖")
+            fatalError("❌ Test 4 failed: Should detect circular dependency")
         }
         
-        print("✅ 测试4通过: 循环依赖检测正确")
+        print("✅ Test 4 passed: Circular dependency detected")
     }
     
-    // MARK: - 测试5: 长依赖链
+    // MARK: - Test 5: Long Dependency Chain
     
-    /// 测试 5 个模块的依赖链
-    /// 链结构: E -> D -> C -> B -> A（E 依赖 D，D 依赖 C，...）
-    /// 启动顺序: A -> B -> C -> D -> E
+    /// Test 5-module dependency chain
+    //// Chain: E -> D -> C -> B -> A (E depends on D, D depends on C, ...)
+    /// Start order: A -> B -> C -> D -> E
     public static func testDependencyChain() {
-        print("\n🧪 测试5: 长依赖链")
+        print("\n🧪 Test 5: Long Dependency Chain")
         
         let registry = ModuleRegistry.shared
         let starter = ModuleStarter(registry: registry, logger: ModuleLogger(category: "TestStarter"))
@@ -646,26 +651,26 @@ public enum ModuleStarterTests {
         let result = starter.startAllModules()
         
         guard case .success(let started, _) = result else {
-            fatalError("❌ 测试5失败: 不应返回失败")
+            fatalError("❌ Test 5 failed: Should not fail")
         }
         guard started == ["A", "B", "C", "D", "E"] else {
-            fatalError("❌ 测试5失败: 期望 [A, B, C, D, E]，实际 \(started)")
+            fatalError("❌ Test 5 failed: Expected [A, B, C, D, E], got \(started)")
         }
         
         for i in 1..<5 {
             guard modules[i].startOrder > modules[i-1].startOrder else {
-                fatalError("❌ 测试5失败: 模块 \(i) 应在 \(i-1) 之后启动")
+                fatalError("❌ Test 5 failed: Module order wrong")
             }
         }
         
-        print("✅ 测试5通过: 5模块依赖链启动顺序正确")
+        print("✅ Test 5 passed: 5 module chain correct")
     }
     
-    // MARK: - 测试6: 重复启动（幂等性）
+    // MARK: - Test 6: Idempotent Start
     
-    /// 测试重复启动同一个模块是幂等的
+    /// Test repeated start is idempotent
     public static func testAlreadyStarted() {
-        print("\n🧪 测试6: 重复启动（幂等性）")
+        print("\n🧪 Test 6: Idempotent Start")
         
         let registry = ModuleRegistry.shared
         let starter = ModuleStarter(registry: registry, logger: ModuleLogger(category: "TestStarter"))
@@ -682,26 +687,26 @@ public enum ModuleStarterTests {
         
         let result1 = starter.startModule("M")
         guard case .success(let alreadyStarted1) = result1, !alreadyStarted1 else {
-            fatalError("❌ 测试6失败: 首次启动应返回 not already started")
+            fatalError("❌ Test 6 failed: First start should be not already started")
         }
         
         let result2 = starter.startModule("M")
         guard case .success(let alreadyStarted2) = result2, alreadyStarted2 else {
-            fatalError("❌ 测试6失败: 重复启动应返回 already started")
+            fatalError("❌ Test 6 failed: Second start should return already started")
         }
         
         guard starter.isStarted("M") else {
-            fatalError("❌ 测试6失败: M 应已启动")
+            fatalError("❌ Test 6 failed: M should be started")
         }
         
-        print("✅ 测试6通过: 幂等启动")
+        print("✅ Test 6 passed: Idempotent start")
     }
     
-    // MARK: - 测试7: 缺失依赖
+    // MARK: - Test 7: Missing Dependency
     
-    /// 测试模块依赖未注册时的处理
+    /// Test handling of missing dependency
     public static func testMissingDependency() {
-        print("\n🧪 测试7: 缺失依赖")
+        print("\n🧪 Test 7: Missing Dependency")
         
         let registry = ModuleRegistry.shared
         let starter = ModuleStarter(registry: registry, logger: ModuleLogger(category: "TestStarter"))
@@ -719,24 +724,24 @@ public enum ModuleStarterTests {
         let result = starter.startModule("HasDep")
         
         guard case .failure(let reason) = result else {
-            fatalError("❌ 测试7失败: 应因缺失依赖而失败")
+            fatalError("❌ Test 7 failed: Should fail due to missing dep")
         }
         if case .dependencyFailed(let name) = reason {
             guard name == "Missing" else {
-                fatalError("❌ 测试7失败: 期望缺失依赖为 Missing，实际 \(name)")
+                fatalError("❌ Test 7 failed: Expected Missing dep, got \(name)")
             }
         } else {
-            fatalError("❌ 测试7失败: 期望 dependencyFailed，实际 \(reason)")
+            fatalError("❌ Test 7 failed: Expected dependencyFailed, got \(reason)")
         }
         
-        print("✅ 测试7通过: 缺失依赖处理正确")
+        print("✅ Test 7 passed: Missing dependency handled")
     }
     
-    // MARK: - 测试8: 多个独立模块（无依赖关系）
+    // MARK: - Test 8: Independent Modules
     
-    /// 测试多个无依赖模块的批量启动
+    /// Test batch start of independent modules
     public static func testMultipleIndependentModules() {
-        print("\n🧪 测试8: 多个独立模块")
+        print("\n🧪 Test 8: Independent Modules")
         
         let registry = ModuleRegistry.shared
         let starter = ModuleStarter(registry: registry, logger: ModuleLogger(category: "TestStarter"))
@@ -756,21 +761,21 @@ public enum ModuleStarterTests {
         let result = starter.startAllModules()
         
         guard case .success(let started, let failed) = result else {
-            fatalError("❌ 测试8失败: 不应返回失败")
+            fatalError("❌ Test 8 failed: Should not fail")
         }
         guard started.count == 3 else {
-            fatalError("❌ 测试8失败: 期望 3 个启动成功，实际 \(started.count)")
+            fatalError("❌ Test 8 failed: Expected 3 successes, got \(started.count)")
         }
         guard failed.isEmpty else {
-            fatalError("❌ 测试8失败: 期望 0 个失败，实际 \(failed.count)")
+            fatalError("❌ Test 8 failed: Expected 0 failures, got \(failed.count)")
         }
         
         for name in names {
             guard starter.isStarted(name) else {
-                fatalError("❌ 测试8失败: \(name) 应已启动")
+                fatalError("❌ Test 8 failed: Module should be started")
             }
         }
         
-        print("✅ 测试8通过: 所有独立模块启动成功")
+        print("✅ Test 8 passed: All independent modules started")
     }
 }

@@ -139,7 +139,7 @@ public struct ModuleConfig: Codable, Equatable {
 // MARK: - ConfigSystem
 /// 全局配置系统（单例）
 /// 管理所有模块的配置，支持 Info.plist 默认值、UserDefaults 用户覆盖、JSON 持久化
-public final class ConfigSystem: Sendable {
+public final class ConfigSystem {
     
     public static let shared = ConfigSystem()
     
@@ -148,29 +148,36 @@ public final class ConfigSystem: Sendable {
         var modules: [String: ModuleConfig] = [:]
         var lock = os_unfair_lock()
         var needsSave = false
+        var hasInitialized = false
     }
     
     private let storage = ConfigStorage()
     private let logger = ModuleLogger(category: "ConfigSystem")
     private let saveQueue = DispatchQueue(label: "com.xianrenzhilu.config.save", qos: .utility)
+    private let saveLock = os_unfair_lock()
+    private var pendingSaveWork: DispatchWorkItem?
     
     /// 配置文件路径：~/Library/Application Support/XianRenZhiLu/module_config.json
-    public var configFileURL: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+    public let configFileURL: URL
+    
+    private init() {
+        self.configFileURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
             .appendingPathComponent("XianRenZhiLu/module_config.json")
     }
-    
-    private init() {}
     
     // MARK: - 初始化
     
     /// 初始化配置系统
     /// 加载顺序：Info.plist → JSON 持久化文件 → UserDefaults（优先级递增）
+    /// 幂等：首次调用执行完整加载，重复调用不重复加载
     public func initialize() {
-        logger.info("Initializing configuration system")
-        
         os_unfair_lock_lock(&storage.lock)
-        defer { os_unfair_lock_unlock(&storage.lock) }
+        if storage.hasInitialized {
+            os_unfair_lock_unlock(&storage.lock)
+            return
+        }
+        
+        logger.info("Initializing configuration system")
         
         // 确保配置目录存在
         let configDir = configFileURL.deletingLastPathComponent()
@@ -190,11 +197,17 @@ public final class ConfigSystem: Sendable {
         loadFromUserDefaultsUnlocked()
         
         // 4. 如果 JSON 文件不存在，立即持久化一次
-        if !FileManager.default.fileExists(atPath: configFileURL.path) {
-            scheduleSaveUnlocked()
+        let firstRun = !FileManager.default.fileExists(atPath: configFileURL.path)
+        let moduleCount = storage.modules.count
+        storage.needsSave = firstRun
+        storage.hasInitialized = true
+        os_unfair_lock_unlock(&storage.lock)
+        
+        if firstRun {
+            scheduleSave()
         }
         
-        logger.info("Configuration system initialized with \(storage.modules.count) modules")
+        logger.info("Configuration system initialized with \(moduleCount) modules")
     }
     
     // MARK: - 公共查询 API
@@ -232,7 +245,6 @@ public final class ConfigSystem: Sendable {
     /// 设置模块启用状态
     public func setModuleEnabled(_ name: String, _ enabled: Bool) {
         os_unfair_lock_lock(&storage.lock)
-        defer { os_unfair_lock_unlock(&storage.lock) }
         
         if var config = storage.modules[name] {
             config.enabled = enabled
@@ -242,15 +254,17 @@ public final class ConfigSystem: Sendable {
         }
         
         storage.needsSave = true
-        scheduleSaveUnlocked()
-        UserDefaults.standard.set(enabled, forKey: "XRZModule.\(name).enabled")
-        logger.info("Module \(name) enabled set to \(enabled)")
+        let moduleName = name  // 提取值类型，在锁外使用
+        os_unfair_lock_unlock(&storage.lock)
+        
+        scheduleSave()
+        UserDefaults.standard.set(enabled, forKey: "XRZModule.\(moduleName).enabled")
+        logger.info("Module \(moduleName) enabled set to \(enabled)")
     }
     
     /// 设置模块优先级
     public func setModulePriority(_ name: String, _ priority: Int) {
         os_unfair_lock_lock(&storage.lock)
-        defer { os_unfair_lock_unlock(&storage.lock) }
         
         if var config = storage.modules[name] {
             config.priority = priority
@@ -260,15 +274,17 @@ public final class ConfigSystem: Sendable {
         }
         
         storage.needsSave = true
-        scheduleSaveUnlocked()
-        UserDefaults.standard.set(priority, forKey: "XRZModule.\(name).priority")
-        logger.info("Module \(name) priority set to \(priority)")
+        let moduleName = name
+        os_unfair_lock_unlock(&storage.lock)
+        
+        scheduleSave()
+        UserDefaults.standard.set(priority, forKey: "XRZModule.\(moduleName).priority")
+        logger.info("Module \(moduleName) priority set to \(priority)")
     }
     
     /// 设置模块自定义配置项
     public func setCustomSetting(_ module: String, _ key: String, _ value: ConfigValue) {
         os_unfair_lock_lock(&storage.lock)
-        defer { os_unfair_lock_unlock(&storage.lock) }
         
         if var config = storage.modules[module] {
             config.customSettings[key] = value
@@ -278,19 +294,24 @@ public final class ConfigSystem: Sendable {
         }
         
         storage.needsSave = true
-        scheduleSaveUnlocked()
-        logger.info("Module \(module) custom setting [\(key)] = \(value)")
+        let moduleName = module
+        os_unfair_lock_unlock(&storage.lock)
+        
+        scheduleSave()
+        logger.info("Module \(moduleName) custom setting [\(key)] = \(value)")
     }
     
     /// 注册/更新完整模块配置
     public func registerModule(_ config: ModuleConfig) {
         os_unfair_lock_lock(&storage.lock)
-        defer { os_unfair_lock_unlock(&storage.lock) }
         
         storage.modules[config.moduleName] = config
         storage.needsSave = true
-        scheduleSaveUnlocked()
-        logger.info("Registered module \(config.moduleName)")
+        let moduleName = config.moduleName
+        os_unfair_lock_unlock(&storage.lock)
+        
+        scheduleSave()
+        logger.info("Registered module \(moduleName)")
     }
     
     // MARK: - 辅助查询
@@ -311,12 +332,13 @@ public final class ConfigSystem: Sendable {
     
     // MARK: - 内部加载方法（调用者必须已持有 lock）
     
-    private func loadFromInfoPlistUnlocked() {
+    @discardableResult
+    private func loadFromInfoPlistUnlocked() -> Int {
         guard let infoDict = Bundle.main.infoDictionary?["XRZModules"] as? [[String: Any]] else {
             logger.warning("No XRZModules key found in Info.plist, using empty defaults")
-            return
+            return 0
         }
-        
+        var loadedCount = 0
         for dict in infoDict {
             guard let name = dict["moduleName"] as? String else { continue }
             
@@ -341,9 +363,11 @@ public final class ConfigSystem: Sendable {
                 customSettings: customSettings
             )
             storage.modules[name] = config
+            loadedCount += 1
         }
         
-        logger.info("Loaded \(storage.modules.count) module defaults from Info.plist")
+        logger.info("Loaded \(loadedCount) module defaults from Info.plist")
+        return loadedCount
     }
     
     private func loadFromDiskUnlocked() {
@@ -368,9 +392,11 @@ public final class ConfigSystem: Sendable {
     }
     
     private func loadFromUserDefaultsUnlocked() {
+        let names = storage.modules.keys  // 先取 keys，避免遍历时修改字典
         var updatedCount = 0
         
-        for (name, var config) in storage.modules {
+        for name in names {
+            guard var config = storage.modules[name] else { continue }
             let prefix = "XRZModule.\(name)."
             var modified = false
             
@@ -394,11 +420,13 @@ public final class ConfigSystem: Sendable {
     
     // MARK: - 异步持久化
     
-    /// 调度异步保存（调用者必须已持有 lock）
-    private func scheduleSaveUnlocked() {
-        storage.needsSave = true
-        
-        saveQueue.async { [weak self] in
+    /// 调度异步保存，合并多次修改为一次写入
+    /// 调用者负责在锁内先设置 storage.needsSave = true
+    /// 本方法只安排异步写入，不碰 storage（不需要调用者持有锁）
+    private func scheduleSave() {
+        os_unfair_lock_lock(&saveLock)
+        pendingSaveWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
             guard let self = self else { return }
             
             os_unfair_lock_lock(&self.storage.lock)
@@ -412,6 +440,10 @@ public final class ConfigSystem: Sendable {
             
             self.performSave(modulesToSave)
         }
+        pendingSaveWork = work
+        os_unfair_lock_unlock(&saveLock)
+        
+        saveQueue.async(execute: work)
     }
     
     /// 执行实际的磁盘写入（在后台队列）
@@ -430,11 +462,18 @@ public final class ConfigSystem: Sendable {
     
     /// 重置所有配置（仅用于测试）
     public func resetForTests() {
+        // 先取消待处理的保存任务（在 storage.lock 之外，避免锁嵌套）
+        os_unfair_lock_lock(&saveLock)
+        pendingSaveWork?.cancel()
+        pendingSaveWork = nil
+        os_unfair_lock_unlock(&saveLock)
+        
         os_unfair_lock_lock(&storage.lock)
         defer { os_unfair_lock_unlock(&storage.lock) }
         
         storage.modules.removeAll()
         storage.needsSave = false
+        storage.hasInitialized = false
         try? FileManager.default.removeItem(at: configFileURL)
         
         // 清理所有以 XRZModule. 开头的 UserDefaults 键
@@ -554,13 +593,13 @@ public final class ConfigSystemTests {
         let useSSL = ConfigSystem.shared.getCustomSetting("TradeModule", "useSSL")
         let symbols = ConfigSystem.shared.getCustomSetting("TradeModule", "symbols")
         
-        guard enabled == true else { fatalError("❌ enabled should be true") }
-        guard priority == 10 else { fatalError("❌ priority should be 10, got \(priority)") }
-        guard deps == ["CoreModule", "DataModule"] else { fatalError("❌ dependencies mismatch: \(deps)") }
-        guard exchange?.stringValue == "Binance" else { fatalError("❌ exchange should be Binance") }
-        guard timeout?.intValue == 30 else { fatalError("❌ timeout should be 30") }
-        guard useSSL?.boolValue == true else { fatalError("❌ useSSL should be true") }
-        guard symbols?.stringArrayValue == ["BTC", "ETH"] else { fatalError("❌ symbols mismatch: \(symbols?.stringArrayValue ?? [])") }
+        guard enabled == true else { fatalError("❌ Test 3 failed: enabled should be true") }
+        guard priority == 10 else { fatalError("❌ Test 3 failed: priority should be 10, got \(priority)") }
+        guard deps == ["CoreModule", "DataModule"] else { fatalError("❌ Test 3 failed: dependencies mismatch: \(deps)") }
+        guard exchange?.stringValue == "Binance" else { fatalError("❌ Test 3 failed: exchange should be Binance") }
+        guard timeout?.intValue == 30 else { fatalError("❌ Test 3 failed: timeout should be 30") }
+        guard useSSL?.boolValue == true else { fatalError("❌ Test 3 failed: useSSL should be true") }
+        guard symbols?.stringArrayValue == ["BTC", "ETH"] else { fatalError("❌ Test 3 failed: symbols mismatch: \(symbols?.stringArrayValue ?? [])") }
         
         // 测试未知模块默认值
         let unknownEnabled = ConfigSystem.shared.isModuleEnabled("UnknownModule")
@@ -568,26 +607,26 @@ public final class ConfigSystemTests {
         let unknownDeps = ConfigSystem.shared.getModuleDependencies("UnknownModule")
         let unknownSetting = ConfigSystem.shared.getCustomSetting("UnknownModule", "key")
         
-        guard unknownEnabled == false else { fatalError("❌ unknown module should be disabled") }
-        guard unknownPriority == 100 else { fatalError("❌ unknown priority should be 100, got \(unknownPriority)") }
-        guard unknownDeps.isEmpty else { fatalError("❌ unknown deps should be empty, got \(unknownDeps)") }
-        guard unknownSetting == nil else { fatalError("❌ unknown setting should be nil") }
+        guard unknownEnabled == false else { fatalError("❌ Test 3 failed: unknown module should be disabled") }
+        guard unknownPriority == 100 else { fatalError("❌ Test 3 failed: unknown priority should be 100, got \(unknownPriority)") }
+        guard unknownDeps.isEmpty else { fatalError("❌ Test 3 failed: unknown deps should be empty, got \(unknownDeps)") }
+        guard unknownSetting == nil else { fatalError("❌ Test 3 failed: unknown setting should be nil") }
         
         // 测试 setModuleEnabled
         ConfigSystem.shared.setModuleEnabled("TradeModule", false)
         let disabled = ConfigSystem.shared.isModuleEnabled("TradeModule")
-        guard disabled == false else { fatalError("❌ setModuleEnabled failed") }
+        guard disabled == false else { fatalError("❌ Test 3 failed: setModuleEnabled failed") }
         
         // 测试 allModuleNames
         let names = ConfigSystem.shared.allModuleNames()
-        guard names == ["TradeModule"] else { fatalError("❌ allModuleNames mismatch: \(names)") }
+        guard names == ["TradeModule"] else { fatalError("❌ Test 3 failed: allModuleNames mismatch: \(names)") }
         
         // 测试 getModuleConfig
         guard let config = ConfigSystem.shared.getModuleConfig("TradeModule") else {
-            fatalError("❌ getModuleConfig returned nil")
+            fatalError("❌ Test 3 failed: getModuleConfig returned nil")
         }
-        guard config.moduleName == "TradeModule" else { fatalError("❌ getModuleConfig name mismatch") }
-        guard config.enabled == false else { fatalError("❌ getModuleConfig enabled mismatch") }
+        guard config.moduleName == "TradeModule" else { fatalError("❌ Test 3 failed: getModuleConfig name mismatch") }
+        guard config.enabled == false else { fatalError("❌ Test 3 failed: getModuleConfig enabled mismatch") }
         
         print("✅ Test 3 passed: All API methods work correctly")
     }
@@ -630,11 +669,11 @@ public final class ConfigSystemTests {
                 fatalError("❌ Test 4 failed: PersistModule not found in JSON")
             }
             
-            guard config.enabled == false else { fatalError("❌ persisted enabled mismatch") }
-            guard config.priority == 99 else { fatalError("❌ persisted priority mismatch") }
-            guard config.dependencies == ["Base"] else { fatalError("❌ persisted deps mismatch") }
-            guard config.customSettings["key"]?.stringValue == "value" else { fatalError("❌ persisted customSetting key mismatch") }
-            guard config.customSettings["newKey"]?.intValue == 123 else { fatalError("❌ persisted customSetting newKey mismatch") }
+            guard config.enabled == false else { fatalError("❌ Test 4 failed: persisted enabled mismatch") }
+            guard config.priority == 99 else { fatalError("❌ Test 4 failed: persisted priority mismatch") }
+            guard config.dependencies == ["Base"] else { fatalError("❌ Test 4 failed: persisted deps mismatch") }
+            guard config.customSettings["key"]?.stringValue == "value" else { fatalError("❌ Test 4 failed: persisted customSetting key mismatch") }
+            guard config.customSettings["newKey"]?.intValue == 123 else { fatalError("❌ Test 4 failed: persisted customSetting newKey mismatch") }
             
             print("✅ Test 4 passed: Config persisted and verified in JSON")
         } catch {
@@ -700,8 +739,8 @@ public final class ConfigSystemTests {
         let enabled = ConfigSystem.shared.isModuleEnabled("OverrideModule")
         let priority = ConfigSystem.shared.getModulePriority("OverrideModule")
         
-        guard enabled == false else { fatalError("❌ UserDefaults override for enabled failed, got \(enabled)") }
-        guard priority == 77 else { fatalError("❌ UserDefaults override for priority failed, got \(priority)") }
+        guard enabled == false else { fatalError("❌ Test 6 failed: UserDefaults override for enabled failed, got \(enabled)") }
+        guard priority == 77 else { fatalError("❌ Test 6 failed: UserDefaults override for priority failed, got \(priority)") }
         
         print("✅ Test 6 passed: UserDefaults overrides applied correctly")
         

@@ -1,47 +1,47 @@
 import Foundation
 import os
 
-// MARK: - 模块失败类型
-/// 模块加载过程中可能发生的5种失败类型
+// MARK: - Module Failure Types
+/// 5 types of failures that may occur during module loading
 public enum ModuleFailureType {
-    /// 依赖缺失：目标模块缺少必要的依赖
+    /// Dependency missing: target module lacks a required dependency
     case dependencyMissing(module: String, dependency: String)
-    /// 循环依赖：模块之间存在循环依赖链
+    /// Circular dependency: modules form a dependency cycle
     case circularDependency(path: [String])
-    /// 版本不兼容：模块版本与系统要求不匹配
+    /// Version incompatible: module version does not meet requirements
     case versionIncompatible(module: String, required: String, actual: String)
-    /// 配置错误：模块配置文件解析失败或配置项非法
+    /// Configuration error: failed to parse or validate module config
     case configurationError(module: String, reason: String)
-    /// 加载超时：模块加载超过最大允许时间
+    /// Load timeout: module loading exceeded maximum allowed time
     case loadTimeout(module: String, duration: TimeInterval)
 }
 
-// MARK: - 模块失败处理结果
-/// 失败处理后的决策结果
+// MARK: - Failure Resolution
+/// Resolution decision after handling a failure
 public enum ModuleFailureResolution {
-    /// 延迟一定时间后重试（指数退避）
+    /// Retry after a delay (exponential backoff)
     case retry(delay: TimeInterval)
-    /// 尝试降级到兼容版本
+    /// Attempt to downgrade to a compatible version
     case downgrade
-    /// 使用默认配置继续加载
+    /// Use default configuration and continue loading
     case useDefaultConfig
-    /// 拒绝加载该模块，不中断系统
+    /// Reject loading this module without crashing the system
     case abort
-    /// 超过最大重试次数，彻底放弃
+    /// Exceeded max retries, give up completely
     case giveUp
 }
 
-// MARK: - 重试记录
-/// 单个模块的重试状态记录
+// MARK: - Retry Record
+/// State record for a single module retry
 private struct RetryRecord {
     var count: Int = 0
     var nextRetryAt: Date?
 }
 
 // MARK: - ModuleFailureHandler
-/// 模块加载失败处理器 (功能7)
-/// 处理模块加载失败的5种情况，提供对应的恢复策略和指数退避重试机制
-/// 所有操作线程安全，使用 os_unfair_lock 保证高并发性能
+/// Module failure handler (Function 7)
+/// Handles 5 types of module loading failures with recovery strategies and exponential backoff retry
+/// All operations thread-safe using os_unfair_lock
 public final class ModuleFailureHandler {
     private let logger = ModuleLogger(category: "ModuleFailureHandler")
     private let maxRetries = 3
@@ -50,44 +50,44 @@ public final class ModuleFailureHandler {
     private var retryRecords: [String: RetryRecord] = [:]
     private var lock = os_unfair_lock()
     
-    // MARK: - 处理失败
-    /// 根据失败类型执行对应的处理策略
-    /// - Parameter failure: 具体的失败类型
-    /// - Returns: 处理决策结果
+    // MARK: - Handle Failure
+    /// Execute the corresponding handling strategy for each failure type
+    /// - Parameter failure: The specific failure type
+    /// - Returns: Resolution decision for the failure
     public func handle(_ failure: ModuleFailureType) -> ModuleFailureResolution {
         switch failure {
         case .dependencyMissing(let module, let dependency):
-            // 策略：记录日志，标记待重试
-            logger.warning("[\(module)] 依赖缺失: \(dependency)，将标记为待重试")
+            // Log and mark for retry
+            logger.info("[\(module)] dependency missing: \(dependency), marking for retry")
             return scheduleRetry(module: module)
             
         case .circularDependency(let path):
-            // 策略：拒绝加载，报告错误
+            // Abort: reject loading, report error
             let pathStr = path.joined(separator: " -> ")
-            logger.error("检测到循环依赖: \(pathStr)，拒绝加载涉及模块")
+            logger.error("Circular dependency detected: \(pathStr), aborting")
             return .abort
             
         case .versionIncompatible(let module, let required, let actual):
-            // 策略：记录日志，尝试降级
-            logger.warning("[\(module)] 版本不兼容: 需要 \(required)，实际 \(actual)，尝试降级")
+            // Downgrade: log and attempt downgrade
+            logger.warning("[\(module)] version incompatible: required \(required), actual \(actual), attempting downgrade")
             return .downgrade
             
         case .configurationError(let module, let reason):
-            // 策略：记录日志，使用默认配置
-            logger.warning("[\(module)] 配置错误: \(reason)，将使用默认配置继续加载")
+            // Use default config: log and continue
+            logger.warning("[\(module)] configuration error: \(reason), using default config")
             return .useDefaultConfig
             
         case .loadTimeout(let module, let duration):
-            // 策略：记录日志，重试3次后放弃
-            logger.error("[\(module)] 加载超时: \(String(format: "%.2f", duration))s，尝试重试")
+            // Retry: log, retry up to 3 times, then give up
+            logger.error("[\(module)] load timeout: \(String(format: "%.2f", duration))s, retrying")
             return scheduleRetry(module: module)
         }
     }
     
-    // MARK: - 重试管理
-    /// 计算并记录重试计划（指数退避）
-    /// - Parameter module: 模块名称
-    /// - Returns: 重试决策（retry / giveUp）
+    // MARK: - Retry Management
+    /// Calculate and record retry plan (exponential backoff)
+    /// - Parameter module: Module name
+    /// - Returns: Retry decision (retry / giveUp)
     private func scheduleRetry(module: String) -> ModuleFailureResolution {
         os_unfair_lock_lock(&lock)
         defer { os_unfair_lock_unlock(&lock) }
@@ -96,23 +96,23 @@ public final class ModuleFailureHandler {
         record.count += 1
         
         if record.count > maxRetries {
-            logger.error("模块 \(module) 超过最大重试次数 (\(maxRetries))，彻底放弃加载")
+            logger.error("Module \(module) exceeded max retries (\(maxRetries)), giving up")
             retryRecords.removeValue(forKey: module)
             return .giveUp
         }
         
-        // 指数退避：delay = baseDelay * 2^(attempt-1)
+        // Exponential backoff: delay = baseDelay * 2^(attempt-1)
         let delay = baseDelay * pow(2.0, Double(record.count - 1))
         record.nextRetryAt = Date().addingTimeInterval(delay)
         retryRecords[module] = record
         
-        logger.info("模块 \(module) 将在 \(String(format: "%.2f", delay))s 后重试 (第 \(record.count)/\(maxRetries) 次)")
+        logger.info("Module \(module) will retry in \(String(format: "%.2f", delay))s (attempt \(record.count)/\(maxRetries))")
         return .retry(delay: delay)
     }
     
-    /// 检查指定模块是否还可以重试
-    /// - Parameter module: 模块名称
-    /// - Returns: 是否未超过最大重试次数
+    /// Check if a module can still be retried
+    /// - Parameter module: Module name
+    /// - Returns: Whether it has not exceeded max retries
     public func canRetry(module: String) -> Bool {
         os_unfair_lock_lock(&lock)
         defer { os_unfair_lock_unlock(&lock) }
@@ -120,50 +120,50 @@ public final class ModuleFailureHandler {
         return record.count < maxRetries
     }
     
-    /// 获取模块的当前重试次数
-    /// - Parameter module: 模块名称
-    /// - Returns: 已重试次数，未记录返回0
+    /// Get current retry count for a module
+    /// - Parameter module: Module name
+    /// - Returns: Retry count, 0 if not recorded
     public func retryCount(for module: String) -> Int {
         os_unfair_lock_lock(&lock)
         defer { os_unfair_lock_unlock(&lock) }
         return retryRecords[module]?.count ?? 0
     }
     
-    /// 获取模块的下次重试时间
-    /// - Parameter module: 模块名称
-    /// - Returns: 下次重试时间点，nil 表示无重试计划
+    /// Get next retry time for a module
+    /// - Parameter module: Module name
+    /// - Returns: Next retry time, nil if no retry planned
     public func nextRetryTime(for module: String) -> Date? {
         os_unfair_lock_lock(&lock)
         defer { os_unfair_lock_unlock(&lock) }
         return retryRecords[module]?.nextRetryAt
     }
     
-    /// 重置指定模块的重试记录（模块加载成功后调用）
-    /// - Parameter module: 模块名称
+    /// Reset retry record for a module (call after successful load)
+    /// - Parameter module: Module name
     public func reset(module: String) {
         os_unfair_lock_lock(&lock)
         retryRecords.removeValue(forKey: module)
         os_unfair_lock_unlock(&lock)
-        logger.info("模块 \(module) 的重试记录已重置")
+        logger.info("Module \(module) retry record reset")
     }
     
-    /// 重置所有模块的重试记录
+    /// Reset all retry records
     public func resetAll() {
         os_unfair_lock_lock(&lock)
         retryRecords.removeAll()
         os_unfair_lock_unlock(&lock)
-        logger.info("所有模块的重试记录已重置")
+        logger.info("All module retry records reset")
     }
     
-    // MARK: - 查询状态
-    /// 获取所有处于待重试状态的模块名称
+    // MARK: - Query Status
+    /// Get all modules pending retry
     public var pendingRetryModules: [String] {
         os_unfair_lock_lock(&lock)
         defer { os_unfair_lock_unlock(&lock) }
         return Array(retryRecords.keys)
     }
     
-    /// 获取待重试模块数量
+    /// Get count of modules pending retry
     public var pendingRetryCount: Int {
         os_unfair_lock_lock(&lock)
         defer { os_unfair_lock_unlock(&lock) }
@@ -171,12 +171,12 @@ public final class ModuleFailureHandler {
     }
 }
 
-// MARK: - 测试代码
-/// ModuleFailureHandler 功能验证测试
-/// 运行方式：在单元测试或 Playground 中调用 `ModuleFailureHandlerTests.runAllTests()`
+// MARK: - Tests
+/// Verify ModuleFailureHandler functionality
+/// Run: call `ModuleFailureHandlerTests.runAllTests()` in unit tests or Playground
 public enum ModuleFailureHandlerTests {
     
-    /// 运行所有测试
+    /// Run all tests
     public static func runAllTests() {
         print("=== ModuleFailureHandler Tests ===")
         
@@ -192,9 +192,9 @@ public enum ModuleFailureHandlerTests {
         print("\n=== All ModuleFailureHandler Tests Passed ✅ ===")
     }
     
-    // MARK: - 测试1: 依赖缺失 -> 标记待重试
+    // MARK: - Test 1: Dependency Missing -> Mark for Retry
     public static func testDependencyMissingRetry() {
-        print("\n🧪 Test 1: 依赖缺失处理（标记待重试）")
+        print("\n🧪 Test 1: Dependency Missing -> Mark for Retry")
         
         let handler = ModuleFailureHandler()
         handler.resetAll()
@@ -206,21 +206,21 @@ public enum ModuleFailureHandlerTests {
         let result = handler.handle(failure)
         
         guard case .retry(let delay) = result else {
-            fatalError("❌ Test 1 失败: 期望返回 retry，实际 \(result)")
+            fatalError("❌ Test 1 failed: expected retry, got \(result)")
         }
         guard delay == 1.0 else {
-            fatalError("❌ Test 1 失败: 首次重试延迟应为 1.0s，实际 \(delay)")
+            fatalError("❌ Test 1 failed: first retry delay should be 1.0s, got \(delay)")
         }
         guard handler.retryCount(for: "TradeModule") == 1 else {
-            fatalError("❌ Test 1 失败: 重试计数应为 1")
+            fatalError("❌ Test 1 failed: retry count should be 1")
         }
         
-        print("✅ Test 1 通过: 依赖缺失 -> 标记待重试，延迟 \(delay)s")
+        print("✅ Test 1 passed: Dependency Missing -> Mark for Retry, delay \(delay)s")
     }
     
-    // MARK: - 测试2: 循环依赖 -> 拒绝加载
+    // MARK: - Test 2: Circular Dependency -> Abort Loading
     public static func testCircularDependencyAbort() {
-        print("\n🧪 Test 2: 循环依赖处理（拒绝加载）")
+        print("\n🧪 Test 2: Circular Dependency -> Abort")
         
         let handler = ModuleFailureHandler()
         handler.resetAll()
@@ -231,15 +231,15 @@ public enum ModuleFailureHandlerTests {
         let result = handler.handle(failure)
         
         guard case .abort = result else {
-            fatalError("❌ Test 2 失败: 期望返回 abort，实际 \(result)")
+            fatalError("❌ Test 2 failed: expected abort, got \(result)")
         }
         
-        print("✅ Test 2 通过: 循环依赖 -> 拒绝加载")
+        print("✅ Test 2 passed: Circular Dependency -> Abort Loading")
     }
     
-    // MARK: - 测试3: 版本不兼容 -> 尝试降级
+    // MARK: - Test 3: Version Incompatible -> Attempt Downgrade
     public static func testVersionIncompatibleDowngrade() {
-        print("\n🧪 Test 3: 版本不兼容处理（尝试降级）")
+        print("\n🧪 Test 3: Version Incompatible -> Downgrade")
         
         let handler = ModuleFailureHandler()
         handler.resetAll()
@@ -252,130 +252,130 @@ public enum ModuleFailureHandlerTests {
         let result = handler.handle(failure)
         
         guard case .downgrade = result else {
-            fatalError("❌ Test 3 失败: 期望返回 downgrade，实际 \(result)")
+            fatalError("❌ Test 3 failed: expected downgrade, got \(result)")
         }
         
-        print("✅ Test 3 通过: 版本不兼容 -> 尝试降级")
+        print("✅ Test 3 passed: Version Incompatible -> Attempt Downgrade")
     }
     
-    // MARK: - 测试4: 配置错误 -> 使用默认配置
+    // MARK: - Test 4: Config Error -> Use Default Config
     public static func testConfigurationErrorUseDefault() {
-        print("\n🧪 Test 4: 配置错误处理（使用默认配置）")
+        print("\n🧪 Test 4: Config Error -> Use Default")
         
         let handler = ModuleFailureHandler()
         handler.resetAll()
         
         let failure = ModuleFailureType.configurationError(
             module: "ConfigModule",
-            reason: "缺少必填字段 'apiEndpoint'"
+            reason: "missing required field 'apiEndpoint'"
         )
         let result = handler.handle(failure)
         
         guard case .useDefaultConfig = result else {
-            fatalError("❌ Test 4 失败: 期望返回 useDefaultConfig，实际 \(result)")
+            fatalError("❌ Test 4 failed: expected useDefaultConfig, got \(result)")
         }
         
-        print("✅ Test 4 通过: 配置错误 -> 使用默认配置")
+        print("✅ Test 4 passed: Config Error -> Use Default Config")
     }
     
-    // MARK: - 测试5: 加载超时 -> 重试3次后放弃
+    // MARK: - Test 5: Load Timeout -> Retry 3 Times Then Give Up
     public static func testLoadTimeoutRetryThenGiveUp() {
-        print("\n🧪 Test 5: 加载超时处理（重试3次后放弃）")
+        print("\n🧪 Test 5: Load Timeout -> Retry 3 Times Then Give Up")
         
         let handler = ModuleFailureHandler()
         handler.resetAll()
         let moduleName = "SlowModule"
         
-        // 第1次超时
+        // 1st timeout
         let r1 = handler.handle(.loadTimeout(module: moduleName, duration: 5.0))
-        guard case .retry = r1 else { fatalError("❌ Test 5 失败: 第1次应返回 retry") }
+        guard case .retry = r1 else { fatalError("❌ Test 5 failed: 1st expected retry") }
         
-        // 第2次超时
+        // 2nd timeout
         let r2 = handler.handle(.loadTimeout(module: moduleName, duration: 5.0))
-        guard case .retry = r2 else { fatalError("❌ Test 5 失败: 第2次应返回 retry") }
+        guard case .retry = r2 else { fatalError("❌ Test 5 failed: 2nd expected retry") }
         
-        // 第3次超时
+        // 3rd timeout
         let r3 = handler.handle(.loadTimeout(module: moduleName, duration: 5.0))
-        guard case .retry = r3 else { fatalError("❌ Test 5 失败: 第3次应返回 retry") }
+        guard case .retry = r3 else { fatalError("❌ Test 5 failed: 3rd expected retry") }
         
-        // 第4次超时 -> 放弃
+        // 4th timeout -> give up
         let r4 = handler.handle(.loadTimeout(module: moduleName, duration: 5.0))
-        guard case .giveUp = r4 else { fatalError("❌ Test 5 失败: 第4次应返回 giveUp，实际 \(r4)") }
+        guard case .giveUp = r4 else { fatalError("❌ Test 5 failed: 4th expected giveUp, got \(r4)") }
         
         guard !handler.canRetry(module: moduleName) else {
-            fatalError("❌ Test 5 失败: 超过3次后应不可重试")
+            fatalError("❌ Test 5 failed: should not retryable after 3 attempts")
         }
         
-        print("✅ Test 5 通过: 超时重试3次后放弃")
+        print("✅ Test 5 passed: Load Timeout -> Retry 3 Times Then Give Up")
     }
     
-    // MARK: - 测试6: 指数退避延迟计算
+    // MARK: - Test 6: Exponential Backoff Calculation
     public static func testExponentialBackoff() {
-        print("\n🧪 Test 6: 指数退避延迟计算")
+        print("\n🧪 Test 6: Exponential Backoff Calculation")
         
         let handler = ModuleFailureHandler()
         handler.resetAll()
         let moduleName = "BackoffModule"
         
-        // 第1次: 1.0 * 2^0 = 1.0
+        // 1st: 1.0 * 2^0 = 1.0
         let r1 = handler.handle(.dependencyMissing(module: moduleName, dependency: "Dep1"))
         guard case .retry(let d1) = r1, d1 == 1.0 else {
-            fatalError("❌ Test 6 失败: 第1次延迟应为 1.0s")
+            fatalError("❌ Test 6 failed: 1st retry delay should be 1.0s, got \(d1)")
         }
         
-        // 第2次: 1.0 * 2^1 = 2.0
+        // 2nd: 1.0 * 2^1 = 2.0
         let r2 = handler.handle(.dependencyMissing(module: moduleName, dependency: "Dep1"))
         guard case .retry(let d2) = r2, d2 == 2.0 else {
-            fatalError("❌ Test 6 失败: 第2次延迟应为 2.0s，实际 \(d2)")
+            fatalError("❌ Test 6 failed: 2nd retry delay should be 2.0s, got \(d2)")
         }
         
-        // 第3次: 1.0 * 2^2 = 4.0
+        // 3rd: 1.0 * 2^2 = 4.0
         let r3 = handler.handle(.dependencyMissing(module: moduleName, dependency: "Dep1"))
         guard case .retry(let d3) = r3, d3 == 4.0 else {
-            fatalError("❌ Test 6 失败: 第3次延迟应为 4.0s，实际 \(d3)")
+            fatalError("❌ Test 6 failed: 3rd delay should be 4.0s, got \(d3)")
         }
         
-        print("✅ Test 6 通过: 指数退避延迟 1.0s -> 2.0s -> 4.0s")
+        print("✅ Test 6 passed: Exponential backoff delay 1.0s -> 2.0s -> 4.0s")
     }
     
-    // MARK: - 测试7: 重置和状态查询
+    // MARK: - Test 7: Reset and State Query
     public static func testResetAndStateQuery() {
-        print("\n🧪 Test 7: 重置和状态查询")
+        print("\n🧪 Test 7: Reset and State Query")
         
         let handler = ModuleFailureHandler()
         handler.resetAll()
         
-        // 制造两个待重试模块
+        // Create two pending retry modules
         _ = handler.handle(.dependencyMissing(module: "ModA", dependency: "DepA"))
         _ = handler.handle(.dependencyMissing(module: "ModB", dependency: "DepB"))
         
         guard handler.pendingRetryCount == 2 else {
-            fatalError("❌ Test 7 失败: 待重试数量应为 2")
+            fatalError("❌ Test 7 failed: pending retry count should be 2")
         }
         
         let pending = handler.pendingRetryModules.sorted()
         guard pending == ["ModA", "ModB"] else {
-            fatalError("❌ Test 7 失败: 待重试模块列表错误: \(pending)")
+            fatalError("❌ Test 7 failed: pending retry list wrong: \(pending)")
         }
         
-        // 重置单个
+        // Reset single
         handler.reset(module: "ModA")
         guard handler.pendingRetryCount == 1 else {
-            fatalError("❌ Test 7 失败: 重置后待重试数量应为 1")
+            fatalError("❌ Test 7 failed: after reset, pending retry count should be 1")
         }
         
-        // 重置全部
+        // Reset all
         handler.resetAll()
         guard handler.pendingRetryCount == 0 else {
-            fatalError("❌ Test 7 失败: 重置全部后待重试数量应为 0")
+            fatalError("❌ Test 7 failed: after reset all, pending retry count should be 0")
         }
         
-        print("✅ Test 7 通过: 状态查询和重置正确")
+        print("✅ Test 7 passed: State query and reset correct")
     }
     
-    // MARK: - 测试8: 线程安全（100并发重试记录）
+    // MARK: - Test 8: Thread Safety (100 concurrent retries)
     public static func testThreadSafety() {
-        print("\n🧪 Test 8: 线程安全（并发处理）")
+        print("\n🧪 Test 8: Thread Safety (100 concurrent retries)")
         
         let handler = ModuleFailureHandler()
         handler.resetAll()
@@ -397,9 +397,9 @@ public enum ModuleFailureHandlerTests {
         group.wait()
         
         guard handler.pendingRetryCount == moduleCount else {
-            fatalError("❌ Test 8 失败: 并发写入后待重试数量应为 \(moduleCount)，实际 \(handler.pendingRetryCount)")
+            fatalError("❌ Test 8 failed: after concurrent writes, pending retry count should be \(moduleCount), got \(handler.pendingRetryCount)")
         }
         
-        print("✅ Test 8 通过: \(moduleCount) 并发失败处理无数据竞争")
+        print("✅ Test 8 passed: \(moduleCount) concurrent failure handling has no data race")
     }
 }

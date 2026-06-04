@@ -212,7 +212,7 @@ public final class ModuleLoader {
     private let registry: ModuleRegistry
     private let eventBus: EventBus
     private let logger: ModuleLogger
-    private let scanner = ModuleScanner()
+    private let scanner = ModuleScanner.shared
 
     public init(registry: ModuleRegistry, eventBus: EventBus, logger: ModuleLogger) {
         self.registry = registry
@@ -225,8 +225,8 @@ public final class ModuleLoader {
         let url = URL(fileURLWithPath: directory)
         let scanned = scanner.scan(directory: url)
 
-        // 过滤无效模块
-        let valid = scanned.filter { $0.isValid }
+        // 扫描结果为有效模块（已由ModuleScanner过滤）
+        let valid = scanned
 
         logger.info("Found \(valid.count) valid modules, resolving dependencies...")
 
@@ -377,13 +377,14 @@ public enum ModuleLoaderTests {
     // MARK: - 模拟模块
     /// 用于测试的模拟模块实现
     public final class MockModule: XRZModule {
-        public static var moduleName: String = "MockModule"
         public let name: String
         public private(set) var isStarted = false
         public private(set) var isStopped = false
+        private static var counter = 0
 
         public init() {
-            self.name = MockModule.moduleName
+            Self.counter += 1
+            self.name = "MockModule\(Self.counter)"
         }
 
         public func start() throws {
@@ -429,8 +430,6 @@ public enum ModuleLoaderTests {
                 dependencies: []
             ),
             bundleURL: URL(fileURLWithPath: "/tmp/C/C.bundle"),
-            isValid: true,
-            validationError: nil
         )
 
         let moduleB = ScannedModule(
@@ -445,8 +444,6 @@ public enum ModuleLoaderTests {
                 dependencies: ["ModuleC"]
             ),
             bundleURL: URL(fileURLWithPath: "/tmp/B/B.bundle"),
-            isValid: true,
-            validationError: nil
         )
 
         let moduleA = ScannedModule(
@@ -461,8 +458,6 @@ public enum ModuleLoaderTests {
                 dependencies: ["ModuleB"]
             ),
             bundleURL: URL(fileURLWithPath: "/tmp/A/A.bundle"),
-            isValid: true,
-            validationError: nil
         )
 
         let modules = [moduleA, moduleB, moduleC]
@@ -504,8 +499,6 @@ public enum ModuleLoaderTests {
                 dependencies: ["ModuleB"]
             ),
             bundleURL: URL(fileURLWithPath: "/tmp/A/A.bundle"),
-            isValid: true,
-            validationError: nil
         )
 
         let moduleB = ScannedModule(
@@ -520,8 +513,6 @@ public enum ModuleLoaderTests {
                 dependencies: ["ModuleA"]
             ),
             bundleURL: URL(fileURLWithPath: "/tmp/B/B.bundle"),
-            isValid: true,
-            validationError: nil
         )
 
         let modules = [moduleA, moduleB]
@@ -569,8 +560,6 @@ public enum ModuleLoaderTests {
                 dependencies: ["MissingDep"]
             ),
             bundleURL: URL(fileURLWithPath: "/tmp/DepTestModule/DepTestModule.bundle"),
-            isValid: true,
-            validationError: nil
         )
 
         let result1 = loader.load(module: depTestModule)
@@ -607,8 +596,6 @@ public enum ModuleLoaderTests {
                 dependencies: []
             ),
             bundleURL: URL(fileURLWithPath: "/tmp/LoadedTestModule/LoadedTestModule.bundle"),
-            isValid: true,
-            validationError: nil
         )
 
         let result2 = loader.load(module: loadedTestModule)
@@ -642,8 +629,6 @@ public enum ModuleLoaderTests {
                 dependencies: []
             ),
             bundleURL: URL(fileURLWithPath: "/tmp/DisabledTestModule/DisabledTestModule.bundle"),
-            isValid: true,
-            validationError: nil
         )
 
         let result3 = loader.load(module: disabledTestModule)
@@ -659,6 +644,8 @@ public enum ModuleLoaderTests {
 
         // 清理
         registry.unregister(name: "LoadedTestModule")
+        ConfigSystem.shared.setModuleEnabled("DepTestModule", true)
+        ConfigSystem.shared.resetForTests()
     }
 
     // MARK: - 测试4: 卸载功能
