@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 // MARK: - 热重载记录
 
@@ -238,139 +239,140 @@ public final class ModuleHotReloader {
     
     /// 默认重载流程（兼容项目已有架构）
     private func performDefaultReload(moduleName: String) -> Bool {
-        #if canImport(仙人指路)
-        let unloader = ModuleUnloader(registry: ModuleRegistry.shared, eventBus: EventBus.shared)
-        let unloadResult = unloader.forceUnload(name: moduleName)
-        log("卸载模块 \(moduleName): \(unloadResult ? "成功" : "失败")")
-        #endif
-        return true
+        // 默认重载流程：由delegate提供实际能力
+        return false
     }
     
     private func log(_ message: String) {
-        #if DEBUG
         print("[ModuleHotReloader] \(message)")
-        #endif
     }
 }
 
-// MARK: - 测试
+// MARK: - 测试代码
+/// 模块热重载器功能验证
+/// 运行方式：在单元测试或 Playground 中调用 `ModuleHotReloaderTests.run()`
+public enum ModuleHotReloaderTests {
 
-#if DEBUG
-/// 测试替身代理
-class TestHotReloadDelegate: ModuleHotReloaderDelegate {
-    var shouldSucceed: Bool = true
-    var reloadCount: Int = 0
-    var compileCount: Int = 0
-    
-    func performHotReload(moduleName: String) -> Bool {
-        reloadCount += 1
-        return shouldSucceed
-    }
-    
-    func compileModule(moduleName: String, sourceDirectory: URL) -> URL? {
-        compileCount += 1
-        return nil
-    }
-}
-
-/// 模块热重载器测试套件
-class ModuleHotReloaderTests {
-    private var reloader: ModuleHotReloader!
-    private var delegate: TestHotReloadDelegate!
-    
-    init() {
-        reloader = ModuleHotReloader.shared
-        delegate = TestHotReloadDelegate()
+    /// 运行所有测试
+    public static func run() {
+        let reloader = ModuleHotReloader.shared
+        let delegate = TestHotReloadDelegate()
         reloader.delegate = delegate
         reloader.isDevelopmentMode = true
         reloader.autoReload = true
         reloader.clearHistory()
         reloader.stopAllWatching()
+
+        print("=== 模块热重载测试 ===")
+        testHotReloadSuccess(reloader: reloader, delegate: delegate)
+        testHotReloadFailure(reloader: reloader, delegate: delegate)
+        testStartWatching(reloader: reloader)
+        testStopWatching(reloader: reloader)
+        testHistoryRecords(reloader: reloader, delegate: delegate)
+        testAutoReloadProperty(reloader: reloader)
+        testClearHistory(reloader: reloader, delegate: delegate)
+        print("\n=== 全部模块热重载测试通过 ✅ ===")
     }
-    
-    /// 运行全部测试
-    func runAllTests() {
-        testHotReloadSuccess()
-        testHotReloadFailure()
-        testStartWatching()
-        testStopWatching()
-        testHistoryRecords()
-        testAutoReloadProperty()
-        testClearHistory()
-        print("✅ 模块热重载测试全部通过")
-    }
-    
-    // 测试1: 热重载成功
-    private func testHotReloadSuccess() {
+
+    // MARK: - 测试1: 热重载成功
+    static func testHotReloadSuccess(reloader: ModuleHotReloader, delegate: TestHotReloadDelegate) {
+        print("\n🧪 测试1: 热重载成功")
         delegate.shouldSucceed = true
         delegate.reloadCount = 0
         let result = reloader.hotReload(moduleName: "SuccessModule")
-        assert(result == true, "热重载应返回成功")
-        assert(delegate.reloadCount == 1, "代理应被调用一次")
+        guard result == true else { fatalError("❌ 测试1失败: 热重载应返回成功") }
+        guard delegate.reloadCount == 1 else { fatalError("❌ 测试1失败: 代理应被调用一次") }
+        print("✅ 测试1通过: 热重载成功")
     }
-    
-    // 测试2: 热重载失败
-    private func testHotReloadFailure() {
+
+    // MARK: - 测试2: 热重载失败
+    static func testHotReloadFailure(reloader: ModuleHotReloader, delegate: TestHotReloadDelegate) {
+        print("\n🧪 测试2: 热重载失败")
         delegate.shouldSucceed = false
         let result = reloader.hotReload(moduleName: "FailModule")
-        assert(result == false, "热重载应返回失败")
+        guard result == false else { fatalError("❌ 测试2失败: 热重载应返回失败") }
         let history = reloader.reloadHistory
-        assert(history.last?.success == false, "历史记录应标记失败")
-        assert(history.last?.error != nil, "失败记录应包含错误信息")
+        guard history.last?.success == false else { fatalError("❌ 测试2失败: 历史记录应标记失败") }
+        guard history.last?.error != nil else { fatalError("❌ 测试2失败: 失败记录应包含错误信息") }
+        print("✅ 测试2通过: 热重载失败")
     }
-    
-    // 测试3: 开始监视
-    private func testStartWatching() {
+
+    // MARK: - 测试3: 开始监视
+    static func testStartWatching(reloader: ModuleHotReloader) {
+        print("\n🧪 测试3: 开始监视")
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        
         let result = reloader.startWatching(moduleName: "WatchModule", directoryURL: tempDir)
-        assert(result == true, "开始监视应成功")
-        assert(reloader.watchedModules.contains("WatchModule"), "watchedModules 应包含 WatchModule")
-        
+        guard result == true else { try? FileManager.default.removeItem(at: tempDir); fatalError("❌ 测试3失败: 开始监视应成功") }
+        guard reloader.watchedModules.contains("WatchModule") else { try? FileManager.default.removeItem(at: tempDir); fatalError("❌ 测试3失败: watchedModules应包含WatchModule") }
         reloader.stopWatching(moduleName: "WatchModule")
         try? FileManager.default.removeItem(at: tempDir)
+        print("✅ 测试3通过: 开始监视正确")
     }
-    
-    // 测试4: 停止监视
-    private func testStopWatching() {
+
+    // MARK: - 测试4: 停止监视
+    static func testStopWatching(reloader: ModuleHotReloader) {
+        print("\n🧪 测试4: 停止监视")
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        
         reloader.startWatching(moduleName: "StopModule", directoryURL: tempDir)
         let result = reloader.stopWatching(moduleName: "StopModule")
-        assert(result == true, "停止监视应成功")
-        assert(!reloader.watchedModules.contains("StopModule"), "watchedModules 不应包含 StopModule")
-        
+        guard result == true else { try? FileManager.default.removeItem(at: tempDir); fatalError("❌ 测试4失败: 停止监视应成功") }
+        guard !reloader.watchedModules.contains("StopModule") else { try? FileManager.default.removeItem(at: tempDir); fatalError("❌ 测试4失败: watchedModules不应包含StopModule") }
         try? FileManager.default.removeItem(at: tempDir)
+        print("✅ 测试4通过: 停止监视正确")
     }
-    
-    // 测试5: 历史记录
-    private func testHistoryRecords() {
+
+    // MARK: - 测试5: 历史记录
+    static func testHistoryRecords(reloader: ModuleHotReloader, delegate: TestHotReloadDelegate) {
+        print("\n🧪 测试5: 历史记录")
         let countBefore = reloader.reloadHistory.count
         delegate.shouldSucceed = true
         _ = reloader.hotReload(moduleName: "HistoryModule")
         let history = reloader.reloadHistory
-        assert(history.count == countBefore + 1, "历史记录应增加一条")
-        assert(history.last?.moduleName == "HistoryModule", "模块名应正确")
-        assert(history.last?.success == true, "成功记录应标记成功")
+        guard history.count == countBefore + 1 else { fatalError("❌ 测试5失败: 历史记录应增加一条") }
+        guard history.last?.moduleName == "HistoryModule" else { fatalError("❌ 测试5失败: 模块名应正确") }
+        guard history.last?.success == true else { fatalError("❌ 测试5失败: 成功记录应标记成功") }
+        print("✅ 测试5通过: 历史记录正确")
     }
-    
-    // 测试6: 自动重载属性
-    private func testAutoReloadProperty() {
+
+    // MARK: - 测试6: 自动重载属性
+    static func testAutoReloadProperty(reloader: ModuleHotReloader) {
+        print("\n🧪 测试6: 自动重载属性")
         reloader.autoReload = false
-        assert(reloader.autoReload == false, "autoReload 应可设置为 false")
+        guard reloader.autoReload == false else { fatalError("❌ 测试6失败: autoReload应可设置为false") }
         reloader.autoReload = true
-        assert(reloader.autoReload == true, "autoReload 应可设置为 true")
+        guard reloader.autoReload == true else { fatalError("❌ 测试6失败: autoReload应可设置为true") }
+        print("✅ 测试6通过: 自动重载属性正确")
     }
-    
-    // 测试7: 清空历史
-    private func testClearHistory() {
+
+    // MARK: - 测试7: 清空历史
+    static func testClearHistory(reloader: ModuleHotReloader, delegate: TestHotReloadDelegate) {
+        print("\n🧪 测试7: 清空历史")
         _ = reloader.hotReload(moduleName: "ClearModule")
         reloader.clearHistory()
-        assert(reloader.reloadHistory.isEmpty, "历史记录应被清空")
+        guard reloader.reloadHistory.isEmpty else { fatalError("❌ 测试7失败: 历史记录应被清空") }
+        print("✅ 测试7通过: 清空历史正确")
     }
 }
-#endif
+
+/// 测试替身代理
+public class TestHotReloadDelegate: ModuleHotReloaderDelegate {
+    public var shouldSucceed: Bool = true
+    public var reloadCount: Int = 0
+    public var compileCount: Int = 0
+
+    public init() {}
+
+    public func performHotReload(moduleName: String) -> Bool {
+        reloadCount += 1
+        return shouldSucceed
+    }
+
+    public func compileModule(moduleName: String, sourceDirectory: URL) -> URL? {
+        compileCount += 1
+        return nil
+    }
+}f

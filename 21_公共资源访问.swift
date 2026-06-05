@@ -116,7 +116,7 @@ public final class ResourceManager {
         os_unfair_lock_lock(&lock)
         if let cached = resourceCache[cacheKey] as? NSImage {
             os_unfair_lock_unlock(&lock)
-            logger.debug("Image cache hit: '\(name)'")
+            logger.debug("图片缓存命中: '\(name)'")
             return cached
         }
         os_unfair_lock_unlock(&lock)
@@ -155,9 +155,9 @@ public final class ResourceManager {
             os_unfair_lock_lock(&lock)
             resourceCache[cacheKey] = image
             os_unfair_lock_unlock(&lock)
-            logger.info("Loaded image: '\(name)' from \(targetBundle.bundleIdentifier ?? "main")")
+            logger.info("已加载图片: '\(name)' 来自\(targetBundle.bundleIdentifier ?? "main")")
         } else {
-            logger.warning("Image not found: '\(name)'")
+            logger.warning("图片未找到: '\(name)'")
         }
 
         return image
@@ -176,11 +176,11 @@ public final class ResourceManager {
 
         // localizedString 在没有找到时会返回 key 本身
         if result == name {
-            logger.warning("String not found: key='\(name)', table=\(table ?? "Localizable")")
+            logger.warning("字符串未找到: key='\(name)', table=\(table ?? "Localizable")")
             return nil
         }
 
-        logger.debug("Loaded string: key='\(name)'")
+        logger.debug("已加载字符串: key='\(name)'")
         return result
     }
 
@@ -196,7 +196,7 @@ public final class ResourceManager {
         os_unfair_lock_lock(&lock)
         if let cached = resourceCache[cacheKey] as? Data {
             os_unfair_lock_unlock(&lock)
-            logger.debug("Data cache hit: '\(name)'")
+            logger.debug("数据缓存命中: '\(name)'")
             return cached
         }
         os_unfair_lock_unlock(&lock)
@@ -224,9 +224,9 @@ public final class ResourceManager {
             os_unfair_lock_lock(&lock)
             resourceCache[cacheKey] = data
             os_unfair_lock_unlock(&lock)
-            logger.info("Loaded data: '\(name)' (\(data.count) bytes)")
+            logger.info("已加载数据: '\(name)' (\(data.count) 字节)")
         } else {
-            logger.warning("Data not found: '\(name)'")
+            logger.warning("数据未找到: '\(name)'")
         }
 
         return data
@@ -245,7 +245,7 @@ public final class ResourceManager {
         os_unfair_lock_lock(&lock)
         if let cached = resourceCache[cacheKey] as? NSFont {
             os_unfair_lock_unlock(&lock)
-            logger.debug("Font cache hit: '\(name)' @ \(size)pt")
+            logger.debug("字体缓存命中: '\(name)' @ \(size)pt")
             return cached
         }
         os_unfair_lock_unlock(&lock)
@@ -271,9 +271,9 @@ public final class ResourceManager {
             os_unfair_lock_lock(&lock)
             resourceCache[cacheKey] = font
             os_unfair_lock_unlock(&lock)
-            logger.info("Loaded font: '\(name)' @ \(size)pt")
+            logger.info("已加载字体: '\(name)' @ \(size)pt")
         } else {
-            logger.warning("Font not found: '\(name)' @ \(size)pt")
+            logger.warning("字体未找到: '\(name)' @ \(size)pt")
         }
 
         return font
@@ -296,7 +296,7 @@ public final class ResourceManager {
             let success = CTFontManagerRegisterFontsForURL(url as CFURL, .process, &error)
             if !success {
                 if let err = error?.takeRetainedValue() {
-                    logger.error("Failed to register font at \(path): \(err)")
+                    logger.error("注册字体失败: \(path): \(err)")
                 }
                 // 注册失败，移除记录以便后续重试
                 os_unfair_lock_lock(&lock)
@@ -328,7 +328,7 @@ public final class ResourceManager {
         os_unfair_lock_lock(&lock)
         if let cached = resourceCache[cacheKey] as? NSColor {
             os_unfair_lock_unlock(&lock)
-            logger.debug("Color cache hit: '\(name)'")
+            logger.debug("颜色缓存命中: '\(name)'")
             return cached
         }
         os_unfair_lock_unlock(&lock)
@@ -359,9 +359,9 @@ public final class ResourceManager {
             os_unfair_lock_lock(&lock)
             resourceCache[cacheKey] = color
             os_unfair_lock_unlock(&lock)
-            logger.info("Loaded color: '\(name)'")
+            logger.info("已加载颜色: '\(name)'")
         } else {
-            logger.warning("Color not found: '\(name)'")
+            logger.warning("颜色未找到: '\(name)'")
         }
 
         return color
@@ -425,7 +425,7 @@ public final class ResourceManager {
         os_unfair_lock_lock(&lock)
         resourceCache.removeAll()
         os_unfair_lock_unlock(&lock)
-        logger.info("Resource cache cleared")
+        logger.info("资源缓存已清理")
     }
 
     /// 获取当前缓存统计信息
@@ -462,7 +462,7 @@ public enum ResourceManagerTests {
 
     /// 运行所有测试
     public static func run() {
-        print("=== ResourceManager Tests ===")
+        print("=== 公共资源管理器测试 ===")
 
         let manager = ResourceManager.shared
         manager.clearCache()
@@ -497,7 +497,7 @@ public enum ResourceManagerTests {
         // 10. 字体加载测试
         testFontLoading(manager: manager)
 
-        print("\n=== All ResourceManager Tests Passed ✅ ===")
+        print("\n=== 全部公共资源管理器测试通过 ✅ ===")
     }
 
     // MARK: - 测试1: 单例
@@ -505,9 +505,9 @@ public enum ResourceManagerTests {
         let instance1 = ResourceManager.shared
         let instance2 = ResourceManager.shared
         guard instance1 === instance2 else {
-            fatalError("❌ Singleton: ResourceManager.shared 不是同一个实例")
+            fatalError("❌ 测试1失败: ResourceManager.shared不是同一个实例")
         }
-        print("✅ Singleton: ResourceManager is a true singleton")
+        print("✅ 测试1通过: ResourceManager是真正的单例")
     }
 
     // MARK: - 测试2: URL 获取
@@ -515,13 +515,13 @@ public enum ResourceManagerTests {
         // 不存在的资源应返回 nil
         let nonExistentURL = manager.url(forResource: "NonExistentResource_xyz", ofType: "png")
         guard nonExistentURL == nil else {
-            fatalError("❌ url(): 不存在的资源应返回 nil")
+            fatalError("❌ 测试2失败: 不存在的资源应返回nil")
         }
-        print("✅ url(): Non-existent resource returns nil")
+        print("✅ 测试2通过: 不存在资源返回nil")
 
         // 带 bundle 参数调用不崩溃
         let _ = manager.url(forResource: "test", ofType: "txt", bundle: Bundle.main)
-        print("✅ url(): Call with bundle parameter succeeds")
+        print("✅ 测试2通过: bundle参数调用成功")
     }
 
     // MARK: - 测试3: 资源存在性检查
@@ -529,13 +529,13 @@ public enum ResourceManagerTests {
         let uuid = UUID().uuidString
         let exists = manager.resourceExists(named: "DefinitelyNotReal_\(uuid)", bundle: nil)
         guard exists == false else {
-            fatalError("❌ resourceExists: 不存在的资源应返回 false")
+            fatalError("❌ 测试3失败: 不存在的资源应返回false")
         }
-        print("✅ resourceExists: Non-existent resource returns false")
+        print("✅ 测试3通过: 不存在资源返回false")
 
         // 带 bundle 调用不崩溃
         let _ = manager.resourceExists(named: "test", bundle: Bundle.main)
-        print("✅ resourceExists: Call with bundle parameter succeeds")
+        print("✅ 测试3通过: bundle参数调用成功")
     }
 
     // MARK: - 测试4: 字符串加载
@@ -543,13 +543,13 @@ public enum ResourceManagerTests {
         let uuid = UUID().uuidString
         let nonExistent = manager.string(named: "NON_EXISTENT_KEY_\(uuid)", table: nil, bundle: nil)
         guard nonExistent == nil else {
-            fatalError("❌ string(): 不存在的键应返回 nil")
+            fatalError("❌ 测试4失败: 不存在的键应返回nil")
         }
-        print("✅ string(): Non-existent key returns nil")
+        print("✅ 测试4通过: 不存在键返回nil")
 
         // 带 table 参数调用不崩溃
         let _ = manager.string(named: "test_key", table: "CustomTable", bundle: Bundle.main)
-        print("✅ string(): Call with table parameter succeeds")
+        print("✅ 测试4通过: table参数调用成功")
     }
 
     // MARK: - 测试5: 缓存机制
@@ -557,7 +557,7 @@ public enum ResourceManagerTests {
         manager.clearCache()
         let initialStats = manager.cacheStats
         guard initialStats.entryCount == 0 else {
-            fatalError("❌ Cache: 清理后缓存应为空，实际有 \(initialStats.entryCount) 项")
+            fatalError("❌ 测试5失败: 清理后缓存应为空，实际有\(initialStats.entryCount)项")
         }
 
         // 加载不存在的资源不会导致异常
@@ -565,7 +565,7 @@ public enum ResourceManagerTests {
         let _ = manager.data(named: "TestCacheData_\(UUID())")
         let _ = manager.color(named: "TestCacheColor_\(UUID())")
 
-        print("✅ Cache: Cache mechanism works without crash")
+        print("✅ 测试5通过: 缓存机制无崩溃")
     }
 
     // MARK: - 测试6: 缓存清理
@@ -576,9 +576,9 @@ public enum ResourceManagerTests {
         manager.clearCache()
         let stats = manager.cacheStats
         guard stats.entryCount == 0 else {
-            fatalError("❌ clearCache: 清理后缓存应为空，实际有 \(stats.entryCount) 项")
+            fatalError("❌ 测试6失败: 清理后缓存应为空，实际有\(stats.entryCount)项")
         }
-        print("✅ clearCache: Cache cleared successfully, entries=0")
+        print("✅ 测试6通过: 缓存清理成功，条目数=0")
     }
 
     // MARK: - 测试7: 线程安全
@@ -599,7 +599,7 @@ public enum ResourceManagerTests {
         }
 
         group.wait()
-        print("✅ Thread safety: \(iterations) concurrent accesses completed without crash")
+        print("✅ 测试7通过: \(iterations)并发访问完成无崩溃")
     }
 
     // MARK: - 测试8: 颜色解析
@@ -607,13 +607,13 @@ public enum ResourceManagerTests {
         let uuid = UUID().uuidString
         let nonExistent = manager.color(named: "NON_EXISTENT_COLOR_\(uuid)")
         guard nonExistent == nil else {
-            fatalError("❌ color(): 不存在的颜色应返回 nil")
+            fatalError("❌ 测试8失败: 不存在的颜色应返回nil")
         }
-        print("✅ color(): Non-existent color returns nil")
+        print("✅ 测试8通过: 不存在颜色返回nil")
 
         // 带 bundle 调用不崩溃
         let _ = manager.color(named: "test_color", bundle: Bundle.main)
-        print("✅ color(): Call with bundle parameter succeeds")
+        print("✅ 测试8通过: bundle参数调用成功")
     }
 
     // MARK: - 测试9: 数据加载
@@ -621,13 +621,13 @@ public enum ResourceManagerTests {
         let uuid = UUID().uuidString
         let nonExistent = manager.data(named: "NON_EXISTENT_DATA_\(uuid)")
         guard nonExistent == nil else {
-            fatalError("❌ data(): 不存在的数据应返回 nil")
+            fatalError("❌ 测试9失败: 不存在的数据应返回nil")
         }
-        print("✅ data(): Non-existent data returns nil")
+        print("✅ 测试9通过: 不存在数据返回nil")
 
         // 带 bundle 调用不崩溃
         let _ = manager.data(named: "test_data", bundle: Bundle.main)
-        print("✅ data(): Call with bundle parameter succeeds")
+        print("✅ 测试9通过: bundle参数调用成功")
     }
 
     // MARK: - 测试10: 字体加载
@@ -635,12 +635,12 @@ public enum ResourceManagerTests {
         let uuid = UUID().uuidString
         let nonExistent = manager.font(named: "NON_EXISTENT_FONT_\(uuid)", size: 16)
         guard nonExistent == nil else {
-            fatalError("❌ font(): 不存在的字体应返回 nil")
+            fatalError("❌ 测试10失败: 不存在的字体应返回nil")
         }
-        print("✅ font(): Non-existent font returns nil")
+        print("✅ 测试10通过: 不存在字体返回nil")
 
         // 带 bundle 调用不崩溃
         let _ = manager.font(named: "test_font", size: 14, bundle: Bundle.main)
-        print("✅ font(): Call with bundle parameter succeeds")
+        print("✅ 测试10通过: bundle参数调用成功")
     }
 }

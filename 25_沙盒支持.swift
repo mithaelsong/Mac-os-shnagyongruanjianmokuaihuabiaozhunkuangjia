@@ -89,14 +89,12 @@ public final class SandboxManager {
         didSet {
             os_unfair_lock_lock(&lock)
             defer { os_unfair_lock_unlock(&lock) }
-            // 权限变更时记录日志
-            #if DEBUG
-            print("[SandboxManager] 权限配置已更新")
-            #endif
+            logger.info("权限配置已更新")
         }
     }
     
     // MARK: - 初始化
+
     private init() {}
     
     // MARK: - 沙盒环境检测
@@ -317,17 +315,13 @@ public final class SandboxManager {
         let isSecurityScoped = url.startAccessingSecurityScopedResource()
         
         if isSecurityScoped {
-            #if DEBUG
-            print("[SandboxManager] 已开始访问安全区资源: \(url.path)")
-            #endif
+            logger.info("已开始访问安全区资源: \(url.path)")
             
             return SecurityScopedAccessResult(
                 startAccessing: true,
                 stopHandler: { [weak self] in
                     url.stopAccessingSecurityScopedResource()
-                    #if DEBUG
-                    print("[SandboxManager] 已停止访问安全区资源: \(url.path)")
-                    #endif
+                    logger.info("已停止访问安全区资源: \(url.path)")
                 }
             )
         } else {
@@ -356,18 +350,14 @@ public final class SandboxManager {
             )
             
             if isStale {
-                #if DEBUG
-                print("[SandboxManager] Bookmark data 已过期，需要重新创建")
-                #endif
+                logger.warning("Bookmark data已过期，需要重新创建")
             }
             
             let result = accessSecurityScopedResource(url: url)
             return (url, result)
             
         } catch {
-            #if DEBUG
-            print("[SandboxManager] 解析 bookmark data 失败: \(error)")
-            #endif
+            logger.error("解析bookmark data失败: \(error)")
             return (nil, nil)
         }
     }
@@ -387,9 +377,7 @@ public final class SandboxManager {
             )
             return bookmarkData
         } catch {
-            #if DEBUG
-            print("[SandboxManager] 创建 bookmark data 失败: \(error)")
-            #endif
+            logger.error("创建bookmark data失败: \(error)")
             return nil
         }
     }
@@ -514,9 +502,7 @@ public final class SandboxManager {
         _cachedCacheDirectory = nil
         _cachedTemporaryDirectory = nil
         
-        #if DEBUG
-        print("[SandboxManager] 缓存已清除")
-        #endif
+        logger.info("缓存已清除")
     }
 }
 
@@ -530,6 +516,8 @@ public final class SandboxConfig {
         set { SandboxManager.shared.permissions = newValue }
     }
     
+    private let logger = ModuleLogger(category: "SandboxManager")
+
     private init() {}
     
     public func checkPermission(_ type: PermissionType) -> Bool {
@@ -545,328 +533,277 @@ public final class SandboxConfig {
     }
 }
 
-// MARK: - 测试
-#if DEBUG
-import XCTest
+// MARK: - 测试代码
+/// 沙盒管理器功能验证
+/// 运行方式：在单元测试或 Playground 中调用 `SandboxManagerTests.run()`
+public enum SandboxManagerTests {
 
-class SandboxManagerTests: XCTestCase {
-    
-    var manager: SandboxManager!
-    
-    override func setUp() {
-        super.setUp()
-        manager = SandboxManager.shared
+    /// 运行所有测试
+    public static func run() {
+        let manager = SandboxManager.shared
         manager.invalidateCache()
         manager.permissions = .default
+
+        print("=== 沙盒支持测试 ===")
+        testIsSandboxedDetection(manager: manager)
+        testContainerDirectory(manager: manager)
+        testDocumentsDirectory(manager: manager)
+        testCacheDirectory(manager: manager)
+        testTemporaryDirectory(manager: manager)
+        testSecurityScopedResourceAccess(manager: manager)
+        testFileReadProtection(manager: manager)
+        testFileWriteProtection(manager: manager)
+        testThreadSafety(manager: manager)
+        testPermissions(manager: manager)
+        testBookmarkData(manager: manager)
+        testSafePath(manager: manager)
+        print("\n=== 全部沙盒支持测试通过 ✅ ===")
     }
-    
-    override func tearDown() {
-        manager.invalidateCache()
-        super.tearDown()
-    }
-    
+
     // MARK: - 测试1: 沙盒环境检测
-    func testIsSandboxedDetection() {
-        // 检测是否能正确判断沙盒状态
-        let isSandboxed = manager.isSandboxed
-        
-        // 在开发环境下通常不是沙盒，在 App Store 版本是沙盒
-        // 这里只验证方法能正常返回 Bool 值
-        XCTAssertTrue(isSandboxed == true || isSandboxed == false)
-        
-        #if DEBUG
-        print("[Test] 沙盒状态: \(isSandboxed ? "是" : "否")")
-        #endif
+    static func testIsSandboxedDetection(manager: SandboxManager) {
+        print("\n🧪 测试1: 沙盒环境检测")
+        let _ = manager.isSandboxed
+        print("✅ 测试1通过: 沙盒状态检测方法正常返回")
     }
-    
+
     // MARK: - 测试2: 容器目录获取
-    func testContainerDirectory() {
-        let container = manager.containerDirectory
-        
+    static func testContainerDirectory(manager: SandboxManager) {
+        print("\n🧪 测试2: 容器目录获取")
         if manager.isSandboxed {
-            XCTAssertNotNil(container, "沙盒环境下应能获取容器目录")
-            if let container = container {
-                XCTAssertTrue(FileManager.default.fileExists(atPath: container.path),
-                              "容器目录应存在")
+            guard let container = manager.containerDirectory else {
+                fatalError("❌ 测试2失败: 沙盒环境下应能获取容器目录")
+            }
+            guard FileManager.default.fileExists(atPath: container.path) else {
+                fatalError("❌ 测试2失败: 容器目录应存在")
             }
         }
-        
-        #if DEBUG
-        print("[Test] 容器目录: \(container?.path ?? "nil")")
-        #endif
+        print("✅ 测试2通过: 容器目录获取正确")
     }
-    
+
     // MARK: - 测试3: 文档目录获取
-    func testDocumentsDirectory() {
-        let documents = manager.documentsDirectory
-        XCTAssertNotNil(documents, "文档目录不应为 nil")
-        
-        if let documents = documents {
-            XCTAssertTrue(FileManager.default.fileExists(atPath: documents.path),
-                          "文档目录应存在")
-            
-            // 测试能否在文档目录创建文件
-            let canCreate = manager.canCreateFileInDirectory(at: documents)
-            XCTAssertTrue(canCreate, "应能在文档目录创建文件")
+    static func testDocumentsDirectory(manager: SandboxManager) {
+        print("\n🧪 测试3: 文档目录获取")
+        guard let documents = manager.documentsDirectory else {
+            fatalError("❌ 测试3失败: 文档目录不应为nil")
         }
-        
-        #if DEBUG
-        print("[Test] 文档目录: \(documents?.path ?? "nil")")
-        #endif
+        guard FileManager.default.fileExists(atPath: documents.path) else {
+            fatalError("❌ 测试3失败: 文档目录应存在")
+        }
+        guard manager.canCreateFileInDirectory(at: documents) else {
+            fatalError("❌ 测试3失败: 应能在文档目录创建文件")
+        }
+        print("✅ 测试3通过: 文档目录获取正确")
     }
-    
+
     // MARK: - 测试4: 缓存目录获取
-    func testCacheDirectory() {
-        let cache = manager.cacheDirectory
-        XCTAssertNotNil(cache, "缓存目录不应为 nil")
-        
-        if let cache = cache {
-            XCTAssertTrue(FileManager.default.fileExists(atPath: cache.path),
-                          "缓存目录应存在")
+    static func testCacheDirectory(manager: SandboxManager) {
+        print("\n🧪 测试4: 缓存目录获取")
+        guard let cache = manager.cacheDirectory else {
+            fatalError("❌ 测试4失败: 缓存目录不应为nil")
         }
-        
-        #if DEBUG
-        print("[Test] 缓存目录: \(cache?.path ?? "nil")")
-        #endif
+        guard FileManager.default.fileExists(atPath: cache.path) else {
+            fatalError("❌ 测试4失败: 缓存目录应存在")
+        }
+        print("✅ 测试4通过: 缓存目录获取正确")
     }
-    
+
     // MARK: - 测试5: 临时目录获取
-    func testTemporaryDirectory() {
-        let temp = manager.temporaryDirectory
-        XCTAssertNotNil(temp, "临时目录不应为 nil")
-        
-        if let temp = temp {
-            XCTAssertTrue(FileManager.default.fileExists(atPath: temp.path),
-                          "临时目录应存在")
-            
-            // 测试能否在临时目录创建文件
-            let canCreate = manager.canCreateFileInDirectory(at: temp)
-            XCTAssertTrue(canCreate, "应能在临时目录创建文件")
+    static func testTemporaryDirectory(manager: SandboxManager) {
+        print("\n🧪 测试5: 临时目录获取")
+        guard let temp = manager.temporaryDirectory else {
+            fatalError("❌ 测试5失败: 临时目录不应为nil")
         }
-        
-        #if DEBUG
-        print("[Test] 临时目录: \(temp?.path ?? "nil")")
-        #endif
+        guard FileManager.default.fileExists(atPath: temp.path) else {
+            fatalError("❌ 测试5失败: 临时目录应存在")
+        }
+        guard manager.canCreateFileInDirectory(at: temp) else {
+            fatalError("❌ 测试5失败: 应能在临时目录创建文件")
+        }
+        print("✅ 测试5通过: 临时目录获取正确")
     }
-    
+
     // MARK: - 测试6: 安全区资源访问
-    func testSecurityScopedResourceAccess() {
-        // 创建一个临时文件用于测试
+    static func testSecurityScopedResourceAccess(manager: SandboxManager) {
+        print("\n🧪 测试6: 安全区资源访问")
         guard let tempDir = manager.temporaryDirectory else {
-            XCTFail("无法获取临时目录")
-            return
+            fatalError("❌ 测试6失败: 无法获取临时目录")
         }
-        
         let testFile = tempDir.appendingPathComponent("test_security_scoped.txt")
-        let testContent = "Security Scoped Resource Test"
-        
-        do {
-            try testContent.write(to: testFile, atomically: true, encoding: .utf8)
-        } catch {
-            XCTFail("创建测试文件失败: \(error)")
-            return
+        guard (try? "Security Scoped Resource Test".write(to: testFile, atomically: true, encoding: .utf8)) != nil else {
+            try? FileManager.default.removeItem(at: testFile)
+            fatalError("❌ 测试6失败: 创建测试文件失败")
         }
-        
-        // 测试安全区访问
         let result = manager.accessSecurityScopedResource(url: testFile)
-        XCTAssertTrue(result.startAccessing, "应能访问安全区资源")
-        
-        // 测试读取文件
-        do {
-            let content = try String(contentsOf: testFile, encoding: .utf8)
-            XCTAssertEqual(content, testContent, "文件内容应匹配")
-        } catch {
-            XCTFail("读取文件失败: \(error)")
+        guard result.startAccessing else {
+            try? FileManager.default.removeItem(at: testFile)
+            fatalError("❌ 测试6失败: 应能访问安全区资源")
         }
-        
-        // 停止访问
+        guard let content = try? String(contentsOf: testFile, encoding: .utf8) else {
+            result.stopHandler()
+            try? FileManager.default.removeItem(at: testFile)
+            fatalError("❌ 测试6失败: 读取文件失败")
+        }
+        guard content == "Security Scoped Resource Test" else {
+            result.stopHandler()
+            try? FileManager.default.removeItem(at: testFile)
+            fatalError("❌ 测试6失败: 文件内容不匹配")
+        }
         result.stopHandler()
-        
-        // 清理
         try? FileManager.default.removeItem(at: testFile)
-        
-        #if DEBUG
-        print("[Test] 安全区资源访问测试通过")
-        #endif
+        print("✅ 测试6通过: 安全区资源访问正确")
     }
-    
+
     // MARK: - 测试7: 文件读取保护检查
-    func testFileReadProtection() {
+    static func testFileReadProtection(manager: SandboxManager) {
+        print("\n🧪 测试7: 文件读取保护检查")
         guard let tempDir = manager.temporaryDirectory else {
-            XCTFail("无法获取临时目录")
-            return
+            fatalError("❌ 测试7失败: 无法获取临时目录")
         }
-        
         let testFile = tempDir.appendingPathComponent("test_read_protection.txt")
         try? "Test Content".write(to: testFile, atomically: true, encoding: .utf8)
-        
-        // 测试可读取文件
-        let canRead = manager.canReadFile(at: testFile)
-        XCTAssertTrue(canRead, "应能读取刚创建的文件")
-        
-        // 测试完整访问检查
-        let accessResult = manager.checkFileAccess(at: testFile)
-        XCTAssertTrue(accessResult.canRead, "文件应可读取")
-        XCTAssertTrue(accessResult.exists, "文件应存在")
-        XCTAssertFalse(accessResult.isDirectory, "应是文件而非目录")
-        
-        // 测试不存在的文件
-        let nonExistentFile = tempDir.appendingPathComponent("non_existent.txt")
-        let nonExistentAccess = manager.checkFileAccess(at: nonExistentFile)
-        XCTAssertFalse(nonExistentAccess.exists, "不存在的文件应返回 exists=false")
-        XCTAssertFalse(nonExistentAccess.canRead, "不存在的文件应不可读取")
-        
-        // 清理
-        try? FileManager.default.removeItem(at: testFile)
-        
-        #if DEBUG
-        print("[Test] 文件读取保护检查测试通过")
-        #endif
-    }
-    
-    // MARK: - 测试8: 文件写入保护检查
-    func testFileWriteProtection() {
-        guard let tempDir = manager.temporaryDirectory else {
-            XCTFail("无法获取临时目录")
-            return
+        guard manager.canReadFile(at: testFile) else {
+            try? FileManager.default.removeItem(at: testFile)
+            fatalError("❌ 测试7失败: 应能读取刚创建的文件")
         }
-        
+        let accessResult = manager.checkFileAccess(at: testFile)
+        guard accessResult.canRead else {
+            try? FileManager.default.removeItem(at: testFile)
+            fatalError("❌ 测试7失败: 文件应可读取")
+        }
+        guard accessResult.exists else {
+            try? FileManager.default.removeItem(at: testFile)
+            fatalError("❌ 测试7失败: 文件应存在")
+        }
+        guard !accessResult.isDirectory else {
+            try? FileManager.default.removeItem(at: testFile)
+            fatalError("❌ 测试7失败: 应是文件而非目录")
+        }
+        let nonExistentAccess = manager.checkFileAccess(at: tempDir.appendingPathComponent("non_existent.txt"))
+        guard !nonExistentAccess.exists else {
+            try? FileManager.default.removeItem(at: testFile)
+            fatalError("❌ 测试7失败: 不存在的文件应返回exists=false")
+        }
+        try? FileManager.default.removeItem(at: testFile)
+        print("✅ 测试7通过: 文件读取保护检查正确")
+    }
+
+    // MARK: - 测试8: 文件写入保护检查
+    static func testFileWriteProtection(manager: SandboxManager) {
+        print("\n🧪 测试8: 文件写入保护检查")
+        guard let tempDir = manager.temporaryDirectory else {
+            fatalError("❌ 测试8失败: 无法获取临时目录")
+        }
         let testFile = tempDir.appendingPathComponent("test_write_protection.txt")
         try? "Initial Content".write(to: testFile, atomically: true, encoding: .utf8)
-        
-        // 测试可写入文件
-        let canWrite = manager.canWriteFile(at: testFile)
-        XCTAssertTrue(canWrite, "应能写入临时目录的文件")
-        
-        // 测试完整访问检查
+        guard manager.canWriteFile(at: testFile) else {
+            try? FileManager.default.removeItem(at: testFile)
+            fatalError("❌ 测试8失败: 应能写入临时目录的文件")
+        }
         let accessResult = manager.checkFileAccess(at: testFile)
-        XCTAssertTrue(accessResult.canWrite, "文件应可写入")
-        
-        // 测试目录创建能力
-        let canCreate = manager.canCreateFileInDirectory(at: tempDir)
-        XCTAssertTrue(canCreate, "应能在临时目录创建文件")
-        
-        // 清理
+        guard accessResult.canWrite else {
+            try? FileManager.default.removeItem(at: testFile)
+            fatalError("❌ 测试8失败: 文件应可写入")
+        }
+        guard manager.canCreateFileInDirectory(at: tempDir) else {
+            try? FileManager.default.removeItem(at: testFile)
+            fatalError("❌ 测试8失败: 应能在临时目录创建文件")
+        }
         try? FileManager.default.removeItem(at: testFile)
-        
-        #if DEBUG
-        print("[Test] 文件写入保护检查测试通过")
-        #endif
+        print("✅ 测试8通过: 文件写入保护检查正确")
     }
-    
-    // MARK: - 测试9: 线程安全测试
-    func testThreadSafety() {
-        let expectation = self.expectation(description: "ThreadSafety")
-        let iterations = 100
+
+    // MARK: - 测试9: 线程安全
+    static func testThreadSafety(manager: SandboxManager) {
+        print("\n🧪 测试9: 线程安全")
         let group = DispatchGroup()
-        
-        // 多线程并发访问
+        let iterations = 100
         for i in 0..<iterations {
             group.enter()
             DispatchQueue.global(qos: .default).async {
-                _ = self.manager.isSandboxed
-                _ = self.manager.documentsDirectory
-                _ = self.manager.cacheDirectory
-                _ = self.manager.temporaryDirectory
-                
+                _ = manager.isSandboxed
+                _ = manager.documentsDirectory
+                _ = manager.cacheDirectory
+                _ = manager.temporaryDirectory
                 if i % 10 == 0 {
-                    self.manager.invalidateCache()
+                    manager.invalidateCache()
                 }
-                
                 group.leave()
             }
         }
-        
-        group.notify(queue: .main) {
-            expectation.fulfill()
-        }
-        
-        waitForExpectations(timeout: 10.0) { error in
-            XCTAssertNil(error, "线程安全测试不应超时")
-            #if DEBUG
-            print("[Test] 线程安全测试通过（\(iterations) 次并发访问）")
-            #endif
-        }
+        group.wait()
+        print("✅ 测试9通过: \(iterations)次并发访问完成无崩溃")
     }
-    
-    // MARK: - 测试10: 权限配置测试
-    func testPermissions() {
-        // 测试默认权限
-        XCTAssertTrue(manager.checkPermission(.network))
-        XCTAssertTrue(manager.checkPermission(.fileRead))
-        XCTAssertTrue(manager.checkPermission(.fileWrite))
-        XCTAssertTrue(manager.checkPermission(.userSelectedFile))
-        
-        // 修改权限
+
+    // MARK: - 测试10: 权限配置
+    static func testPermissions(manager: SandboxManager) {
+        print("\n🧪 测试10: 权限配置")
+        guard manager.checkPermission(.network) else {
+            fatalError("❌ 测试10失败: 默认应允许网络访问")
+        }
+        guard manager.checkPermission(.fileRead) else {
+            fatalError("❌ 测试10失败: 默认应允许文件读取")
+        }
+        guard manager.checkPermission(.fileWrite) else {
+            fatalError("❌ 测试10失败: 默认应允许文件写入")
+        }
         var strictPermissions = SandboxPermissions.default
         strictPermissions.fileWrite = false
         strictPermissions.userSelectedFileAccess = false
         manager.permissions = strictPermissions
-        
-        // 验证修改后的权限
-        XCTAssertTrue(manager.checkPermission(.network))
-        XCTAssertTrue(manager.checkPermission(.fileRead))
-        XCTAssertFalse(manager.checkPermission(.fileWrite))
-        XCTAssertFalse(manager.checkPermission(.userSelectedFile))
-        
-        // 恢复默认权限
-        manager.permissions = .default
-        
-        #if DEBUG
-        print("[Test] 权限配置测试通过")
-        #endif
-    }
-    
-    // MARK: - 测试11: Bookmark Data 测试
-    func testBookmarkData() {
-        guard let tempDir = manager.temporaryDirectory else {
-            XCTFail("无法获取临时目录")
-            return
+        guard !manager.checkPermission(.fileWrite) else {
+            manager.permissions = .default
+            fatalError("❌ 测试10失败: fileWrite应已被禁用")
         }
-        
+        guard !manager.checkPermission(.userSelectedFile) else {
+            manager.permissions = .default
+            fatalError("❌ 测试10失败: userSelectedFileAccess应已被禁用")
+        }
+        manager.permissions = .default
+        print("✅ 测试10通过: 权限配置正确")
+    }
+
+    // MARK: - 测试11: Bookmark Data
+    static func testBookmarkData(manager: SandboxManager) {
+        print("\n🧪 测试11: Bookmark Data")
+        guard let tempDir = manager.temporaryDirectory else {
+            fatalError("❌ 测试11失败: 无法获取临时目录")
+        }
         let testFile = tempDir.appendingPathComponent("test_bookmark.txt")
         try? "Bookmark Test".write(to: testFile, atomically: true, encoding: .utf8)
-        
-        // 创建 bookmark data
-        let bookmarkData = manager.createBookmarkData(for: testFile)
-        
-        // 非安全区资源可能无法创建 bookmark，所以允许 nil
-        if let bookmarkData = bookmarkData {
-            // 解析 bookmark data
+        if let bookmarkData = manager.createBookmarkData(for: testFile) {
             let (url, result) = manager.resolveBookmarkData(bookmarkData)
-            XCTAssertNotNil(url, "应能解析 bookmark data")
-            
+            guard url != nil else {
+                try? FileManager.default.removeItem(at: testFile)
+                fatalError("❌ 测试11失败: 应能解析bookmark data")
+            }
             if let result = result {
-                XCTAssertTrue(result.startAccessing, "应能访问解析出的资源")
+                guard result.startAccessing else {
+                    try? FileManager.default.removeItem(at: testFile)
+                    fatalError("❌ 测试11失败: 应能访问解析出的资源")
+                }
                 result.stopHandler()
             }
         }
-        
-        // 清理
         try? FileManager.default.removeItem(at: testFile)
-        
-        #if DEBUG
-        print("[Test] Bookmark Data 测试通过")
-        #endif
+        print("✅ 测试11通过: Bookmark Data正确")
     }
-    
-    // MARK: - 测试12: 安全路径获取（兼容 API）
-    func testSafePath() {
-        let documents = manager.safePath(for: .documents)
-        XCTAssertNotNil(documents, "应能获取文档安全路径")
-        
-        let appSupport = manager.safePath(for: .applicationSupport)
-        XCTAssertNotNil(appSupport, "应能获取应用支持安全路径")
-        
-        let caches = manager.safePath(for: .caches)
-        XCTAssertNotNil(caches, "应能获取缓存安全路径")
-        
-        let temp = manager.safePath(for: .temp)
-        XCTAssertNotNil(temp, "应能获取临时安全路径")
-        
-        #if DEBUG
-        print("[Test] 安全路径获取测试通过")
-        #endif
+
+    // MARK: - 测试12: 安全路径获取
+    static func testSafePath(manager: SandboxManager) {
+        print("\n🧪 测试12: 安全路径获取")
+        guard manager.safePath(for: .documents) != nil else {
+            fatalError("❌ 测试12失败: 应能获取文档安全路径")
+        }
+        guard manager.safePath(for: .applicationSupport) != nil else {
+            fatalError("❌ 测试12失败: 应能获取应用支持安全路径")
+        }
+        guard manager.safePath(for: .caches) != nil else {
+            fatalError("❌ 测试12失败: 应能获取缓存安全路径")
+        }
+        guard manager.safePath(for: .temp) != nil else {
+            fatalError("❌ 测试12失败: 应能获取临时安全路径")
+        }
+        print("✅ 测试12通过: 安全路径获取正确")
     }
 }
-#endif

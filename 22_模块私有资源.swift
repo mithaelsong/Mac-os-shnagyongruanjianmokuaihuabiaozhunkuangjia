@@ -256,7 +256,7 @@ extension ModuleResourceManager {
 
     /// 运行全部测试
     public static func runTests() {
-        print("=== 功能22: 模块私有资源 测试开始 ===")
+        print("=== 模块私有资源测试 ===")
 
         testRegisterModule()
         testUnregisterModule()
@@ -265,34 +265,34 @@ extension ModuleResourceManager {
         testRegisteredModulesList()
         testThreadSafety()
 
-        print("=== 全部测试通过 ===")
+        print("\n=== 全部模块私有资源测试通过 ✅ ===")
     }
 
     // MARK: - 测试1: 注册模块
     private static func testRegisterModule() {
-        print("测试1: 注册模块...")
+        print("\n🧪 测试1: 注册模块")
 
         let manager = ModuleResourceManager.shared
         let testBundle = Bundle.main
 
         let result = manager.registerModule(moduleName: "TestModule", bundle: testBundle)
         guard result == true else {
-            fatalError("❌ 注册模块应返回 true")
+            fatalError("❌ 测试1失败: 注册模块应返回true")
         }
 
         guard manager.isModuleRegistered("TestModule") == true else {
-            fatalError("❌ 注册后模块应存在")
+            fatalError("❌ 测试1失败: 注册后模块应存在")
         }
 
         // 清理
         _ = manager.unregisterModule(moduleName: "TestModule")
 
-        print("✅ 测试1通过")
+        print("✅ 测试1通过: 注册模块正确")
     }
 
     // MARK: - 测试2: 注销模块
     private static func testUnregisterModule() {
-        print("测试2: 注销模块...")
+        print("\n🧪 测试2: 注销模块")
 
         let manager = ModuleResourceManager.shared
         let testBundle = Bundle.main
@@ -300,56 +300,56 @@ extension ModuleResourceManager {
         _ = manager.registerModule(moduleName: "TestModule2", bundle: testBundle)
         let result = manager.unregisterModule(moduleName: "TestModule2")
         guard result == true else {
-            fatalError("❌ 注销已注册模块应返回 true")
+            fatalError("❌ 测试2失败: 注销已注册模块应返回true")
         }
 
         guard manager.isModuleRegistered("TestModule2") == false else {
-            fatalError("❌ 注销后模块不应存在")
+            fatalError("❌ 测试2失败: 注销后模块不应存在")
         }
 
-        print("✅ 测试2通过")
+        print("✅ 测试2通过: 注销模块正确")
     }
 
     // MARK: - 测试3: 重复注册
     private static func testDuplicateRegister() {
-        print("测试3: 重复注册...")
+        print("\n🧪 测试3: 重复注册")
 
         let manager = ModuleResourceManager.shared
         let testBundle = Bundle.main
 
         let first = manager.registerModule(moduleName: "DupModule", bundle: testBundle)
         guard first == true else {
-            fatalError("❌ 首次注册应返回 true")
+            fatalError("❌ 测试3失败: 首次注册应返回true")
         }
 
         let second = manager.registerModule(moduleName: "DupModule", bundle: testBundle)
         guard second == false else {
-            fatalError("❌ 重复注册应返回 false")
+            fatalError("❌ 测试3失败: 重复注册应返回false")
         }
 
         // 清理
         _ = manager.unregisterModule(moduleName: "DupModule")
 
-        print("✅ 测试3通过")
+        print("✅ 测试3通过: 重复注册正确")
     }
 
     // MARK: - 测试4: 注销不存在模块
     private static func testUnregisterNonExistent() {
-        print("测试4: 注销不存在模块...")
+        print("\n🧪 测试4: 注销不存在模块")
 
         let manager = ModuleResourceManager.shared
 
         let result = manager.unregisterModule(moduleName: "GhostModule")
         guard result == false else {
-            fatalError("❌ 注销不存在模块应返回 false")
+            fatalError("❌ 测试4失败: 注销不存在模块应返回false")
         }
 
-        print("✅ 测试4通过")
+        print("✅ 测试4通过: 注销不存在模块正确")
     }
 
     // MARK: - 测试5: 已注册模块列表查询
     private static func testRegisteredModulesList() {
-        print("测试5: 已注册模块列表查询...")
+        print("\n🧪 测试5: 已注册模块列表查询")
 
         let manager = ModuleResourceManager.shared
         let testBundle = Bundle.main
@@ -361,23 +361,23 @@ extension ModuleResourceManager {
 
         let after = manager.registeredModules
         guard after.count == before.count + 2 else {
-            fatalError("❌ 注册后模块列表应增加2个，实际增加 \(after.count - before.count)")
+            fatalError("❌ 测试5失败: 注册后模块列表应增加2个，实际增加\(after.count - before.count)")
         }
 
         guard after.contains("ListModuleA") && after.contains("ListModuleB") else {
-            fatalError("❌ 模块列表应包含注册的两个模块")
+            fatalError("❌ 测试5失败: 模块列表应包含注册的两个模块")
         }
 
         // 清理
         _ = manager.unregisterModule(moduleName: "ListModuleA")
         _ = manager.unregisterModule(moduleName: "ListModuleB")
 
-        print("✅ 测试5通过")
+        print("✅ 测试5通过: 模块列表查询正确")
     }
 
     // MARK: - 测试6: 线程安全（100并发注册+查询）
     private static func testThreadSafety() {
-        print("测试6: 线程安全（100并发注册+查询）...")
+        print("\n🧪 测试6: 线程安全（100并发注册+查询）")
 
         let manager = ModuleResourceManager.shared
         let testBundle = Bundle.main
@@ -409,7 +409,7 @@ extension ModuleResourceManager {
         let modules = manager.registeredModules
         let registeredCount = modules.filter { $0.hasPrefix("ThreadModule") }.count
         guard registeredCount == count else {
-            fatalError("❌ 并发注册后应有 \(count) 个模块，实际 \(registeredCount)")
+            fatalError("❌ 测试6失败: 并发注册后应有\(count)个模块，实际\(registeredCount)")
         }
 
         // 并发注销
@@ -425,9 +425,9 @@ extension ModuleResourceManager {
 
         let remaining = manager.registeredModules.filter { $0.hasPrefix("ThreadModule") }.count
         guard remaining == 0 else {
-            fatalError("❌ 并发注销后应无 ThreadModule，剩余 \(remaining)")
+            fatalError("❌ 测试6失败: 并发注销后应无ThreadModule，剩余\(remaining)")
         }
 
-        print("✅ 测试6通过")
+        print("✅ 测试6通过: 线程安全正确")
     }
 }

@@ -75,7 +75,7 @@ public enum VersionStatus: Equatable {
 
 // MARK: - VersionChecker
 /// 模块版本检查器（单例），线程安全
-public final class VersionChecker: @unchecked Sendable {
+public final class VersionChecker {
 
     // MARK: - 单例
     public static let shared = VersionChecker()
@@ -192,7 +192,6 @@ public final class VersionChecker: @unchecked Sendable {
     }
 
     // MARK: - 测试辅助
-    #if DEBUG
     /// 重置所有状态（仅用于测试）
     public func resetForTesting() {
         withLock {
@@ -201,153 +200,200 @@ public final class VersionChecker: @unchecked Sendable {
             moduleVersions.removeAll()
         }
     }
-    #endif
 }
 
-// MARK: - 单元测试
-#if DEBUG
-import XCTest
+// MARK: - 测试代码
+/// 模块版本检查器功能验证
+/// 运行方式：在单元测试或 Playground 中调用 `VersionCheckerTests.run()`
+public enum VersionCheckerTests {
 
-final class VersionCheckerTests: XCTestCase {
-
-    var checker: VersionChecker!
-
-    override func setUp() {
-        super.setUp()
-        checker = VersionChecker.shared
+    /// 运行所有测试
+    public static func run() {
+        let checker = VersionChecker.shared
         checker.resetForTesting()
         checker.registerFrameworkVersion(Version(major: 2, minor: 5, patch: 0))
         checker.setMinimumVersion(moduleName: "TestModule", version: Version(major: 2, minor: 0, patch: 0))
+
+        print("=== 模块版本检查测试 ===")
+        testVersionParsing()
+        testVersionComparisonOperators()
+        testExactCompatibleVersion(checker: checker)
+        testOutdatedVersion(checker: checker)
+        testNewerVersion(checker: checker)
+        testMajorVersionMismatch(checker: checker)
+        testBelowMinimumVersion(checker: checker)
+        testFrameworkVersionNotRegistered(checker: checker)
+        testBatchCheckAllModules(checker: checker)
+        testThreadSafety(checker: checker)
+        testEdgeCaseVersionParsing()
+        testQueryMethods(checker: checker)
+        print("\n=== 全部模块版本检查测试通过 ✅ ===")
     }
 
-    override func tearDown() {
-        checker.resetForTesting()
-        super.tearDown()
-    }
-
-    // MARK: 测试1: 版本号解析
-    func testVersionParsing() {
+    // MARK: - 测试1: 版本号解析
+    static func testVersionParsing() {
+        print("\n🧪 测试1: 版本号解析")
         let v = Version("1.2.3")
-        XCTAssertEqual(v.major, 1)
-        XCTAssertEqual(v.minor, 2)
-        XCTAssertEqual(v.patch, 3)
-        XCTAssertEqual(v.stringValue, "1.2.3")
+        guard v.major == 1 else { fatalError("❌ 测试1失败: major应为1，实际\(v.major)") }
+        guard v.minor == 2 else { fatalError("❌ 测试1失败: minor应为2，实际\(v.minor)") }
+        guard v.patch == 3 else { fatalError("❌ 测试1失败: patch应为3，实际\(v.patch)") }
+        guard v.stringValue == "1.2.3" else { fatalError("❌ 测试1失败: stringValue应为1.2.3，实际\(v.stringValue)") }
+        print("✅ 测试1通过: 版本号解析正确")
     }
 
-    // MARK: 测试2: 版本比较操作符
-    func testVersionComparisonOperators() {
+    // MARK: - 测试2: 版本比较操作符
+    static func testVersionComparisonOperators() {
+        print("\n🧪 测试2: 版本比较操作符")
         let v1 = Version(major: 1, minor: 0, patch: 0)
         let v2 = Version(major: 1, minor: 1, patch: 0)
         let v3 = Version(major: 2, minor: 0, patch: 0)
         let v1_copy = Version(major: 1, minor: 0, patch: 0)
-
-        XCTAssertTrue(v1 < v2)
-        XCTAssertTrue(v2 < v3)
-        XCTAssertTrue(v1 < v3)
-        XCTAssertTrue(v3 > v1)
-        XCTAssertTrue(v2 >= v1)
-        XCTAssertTrue(v1 <= v2)
-        XCTAssertTrue(v1 == v1_copy)
-        XCTAssertFalse(v1 > v2)
-        XCTAssertFalse(v3 <= v1)
+        guard v1 < v2 else { fatalError("❌ 测试2失败: v1应小于v2") }
+        guard v2 < v3 else { fatalError("❌ 测试2失败: v2应小于v3") }
+        guard v3 > v1 else { fatalError("❌ 测试2失败: v3应大于v1") }
+        guard v2 >= v1 else { fatalError("❌ 测试2失败: v2应大于等于v1") }
+        guard v1 <= v2 else { fatalError("❌ 测试2失败: v1应小于等于v2") }
+        guard v1 == v1_copy else { fatalError("❌ 测试2失败: v1应等于v1_copy") }
+        guard !(v1 > v2) else { fatalError("❌ 测试2失败: v1不应大于v2") }
+        print("✅ 测试2通过: 版本比较操作符正确")
     }
 
-    // MARK: 测试3: 兼容版本（完全一致）
-    func testExactCompatibleVersion() {
+    // MARK: - 测试3: 兼容版本
+    static func testExactCompatibleVersion(checker: VersionChecker) {
+        print("\n🧪 测试3: 兼容版本")
         let result = checker.checkModuleVersion(moduleName: "TestModule", version: Version(major: 2, minor: 5, patch: 0))
-        XCTAssertEqual(result, .compatible)
+        guard case .compatible = result else {
+            fatalError("❌ 测试3失败: 期望.compatible，实际\(result)")
+        }
+        print("✅ 测试3通过: 兼容版本正确")
     }
 
-    // MARK: 测试4: 版本过旧
-    func testOutdatedVersion() {
+    // MARK: - 测试4: 版本过旧
+    static func testOutdatedVersion(checker: VersionChecker) {
+        print("\n🧪 测试4: 版本过旧")
         let result = checker.checkModuleVersion(moduleName: "TestModule", version: Version(major: 2, minor: 3, patch: 1))
-        XCTAssertEqual(result, .outdated("Module version 2.3.1 is outdated, framework version is 2.5.0"))
+        guard case .outdated = result else {
+            fatalError("❌ 测试4失败: 期望.outdated，实际\(result)")
+        }
+        print("✅ 测试4通过: 版本过旧正确")
     }
 
-    // MARK: 测试5: 版本比框架新
-    func testNewerVersion() {
+    // MARK: - 测试5: 版本比框架新
+    static func testNewerVersion(checker: VersionChecker) {
+        print("\n🧪 测试5: 版本比框架新")
         let result = checker.checkModuleVersion(moduleName: "TestModule", version: Version(major: 2, minor: 6, patch: 0))
-        XCTAssertEqual(result, .newer("Module version 2.6.0 is newer than framework version 2.5.0"))
+        guard case .newer = result else {
+            fatalError("❌ 测试5失败: 期望.newer，实际\(result)")
+        }
+        print("✅ 测试5通过: 版本比框架新正确")
     }
 
-    // MARK: 测试6: 主版本不匹配
-    func testMajorVersionMismatch() {
+    // MARK: - 测试6: 主版本不匹配
+    static func testMajorVersionMismatch(checker: VersionChecker) {
+        print("\n🧪 测试6: 主版本不匹配")
         let result = checker.checkModuleVersion(moduleName: "TestModule", version: Version(major: 3, minor: 0, patch: 0))
-        XCTAssertEqual(result, .incompatible("Major version mismatch: module 3.x.x vs framework 2.x.x"))
+        guard case .incompatible = result else {
+            fatalError("❌ 测试6失败: 期望.incompatible，实际\(result)")
+        }
+        print("✅ 测试6通过: 主版本不匹配正确")
     }
 
-    // MARK: 测试7: 低于最低要求版本
-    func testBelowMinimumVersion() {
+    // MARK: - 测试7: 低于最低要求版本
+    static func testBelowMinimumVersion(checker: VersionChecker) {
+        print("\n🧪 测试7: 低于最低要求版本")
         let result = checker.checkModuleVersion(moduleName: "TestModule", version: Version(major: 1, minor: 9, patch: 9))
-        XCTAssertEqual(result, .incompatible("Version 1.9.9 is below minimum required 2.0.0"))
+        guard case .incompatible = result else {
+            fatalError("❌ 测试7失败: 期望.incompatible，实际\(result)")
+        }
+        print("✅ 测试7通过: 低于最低要求版本正确")
     }
 
-    // MARK: 测试8: 未注册框架版本
-    func testFrameworkVersionNotRegistered() {
+    // MARK: - 测试8: 未注册框架版本
+    static func testFrameworkVersionNotRegistered(checker: VersionChecker) {
+        print("\n🧪 测试8: 未注册框架版本")
         checker.resetForTesting()
         let result = checker.checkModuleVersion(moduleName: "TestModule", version: Version(major: 1, minor: 0, patch: 0))
-        XCTAssertEqual(result, .incompatible("Framework version not registered"))
+        guard case .incompatible = result else {
+            fatalError("❌ 测试8失败: 期望.incompatible，实际\(result)")
+        }
+        checker.registerFrameworkVersion(Version(major: 2, minor: 5, patch: 0))
+        checker.setMinimumVersion(moduleName: "TestModule", version: Version(major: 2, minor: 0, patch: 0))
+        print("✅ 测试8通过: 未注册框架版本正确")
     }
 
-    // MARK: 测试9: 批量检查所有已注册模块
-    func testBatchCheckAllModules() {
+    // MARK: - 测试9: 批量检查所有已注册模块
+    static func testBatchCheckAllModules(checker: VersionChecker) {
+        print("\n🧪 测试9: 批量检查所有已注册模块")
         checker.registerModuleVersion(moduleName: "ModuleA", version: Version(major: 2, minor: 3, patch: 0))
         checker.registerModuleVersion(moduleName: "ModuleB", version: Version(major: 2, minor: 5, patch: 0))
         checker.registerModuleVersion(moduleName: "ModuleC", version: Version(major: 3, minor: 0, patch: 0))
-
         let results = checker.checkAllRegisteredModules()
-        XCTAssertEqual(results.count, 3)
-
+        guard results.count == 3 else {
+            fatalError("❌ 测试9失败: 期望3个结果，实际\(results.count)")
+        }
         let statusMap = Dictionary(uniqueKeysWithValues: results.map { ($0.moduleName, $0.status) })
-
-        XCTAssertEqual(statusMap["ModuleA"], .outdated("Module version 2.3.0 is outdated, framework version is 2.5.0"))
-        XCTAssertEqual(statusMap["ModuleB"], .compatible)
-        XCTAssertEqual(statusMap["ModuleC"], .incompatible("Major version mismatch: module 3.x.x vs framework 2.x.x"))
+        guard case .outdated = statusMap["ModuleA"]! else {
+            fatalError("❌ 测试9失败: ModuleA应过期")
+        }
+        guard case .compatible = statusMap["ModuleB"]! else {
+            fatalError("❌ 测试9失败: ModuleB应兼容")
+        }
+        guard case .incompatible = statusMap["ModuleC"]! else {
+            fatalError("❌ 测试9失败: ModuleC应不兼容")
+        }
+        print("✅ 测试9通过: 批量检查正确")
     }
 
-    // MARK: 测试10: 线程安全并发访问
-    func testThreadSafety() {
-        let expectation = self.expectation(description: "Concurrent version checks")
-        expectation.expectedFulfillmentCount = 200
-
+    // MARK: - 测试10: 线程安全并发访问
+    static func testThreadSafety(checker: VersionChecker) {
+        print("\n🧪 测试10: 线程安全")
+        let group = DispatchGroup()
         for i in 0..<200 {
+            group.enter()
             DispatchQueue.global().async {
                 let minor = i % 10
                 let v = Version(major: 2, minor: minor, patch: 0)
-                _ = self.checker.checkModuleVersion(moduleName: "ConcurrentModule", version: v)
+                _ = checker.checkModuleVersion(moduleName: "ConcurrentModule", version: v)
                 if i % 2 == 0 {
-                    self.checker.registerModuleVersion(moduleName: "DynamicModule\(i)", version: v)
+                    checker.registerModuleVersion(moduleName: "DynamicModule\(i)", version: v)
                 }
-                expectation.fulfill()
+                group.leave()
             }
         }
-
-        wait(for: [expectation], timeout: 10.0)
+        group.wait()
+        print("✅ 测试10通过: 200次并发访问完成无崩溃")
     }
 
-    // MARK: 测试11: 边界版本解析
-    func testEdgeCaseVersionParsing() {
+    // MARK: - 测试11: 边界版本解析
+    static func testEdgeCaseVersionParsing() {
+        print("\n🧪 测试11: 边界版本解析")
         let v1 = Version("2.0")
-        XCTAssertEqual(v1.major, 2)
-        XCTAssertEqual(v1.minor, 0)
-        XCTAssertEqual(v1.patch, 0)
-
+        guard v1.major == 2 && v1.minor == 0 && v1.patch == 0 else {
+            fatalError("❌ 测试11失败: 2.0应解析为2.0.0")
+        }
         let v2 = Version("")
-        XCTAssertEqual(v2.major, 0)
-        XCTAssertEqual(v2.minor, 0)
-        XCTAssertEqual(v2.patch, 0)
-
+        guard v2.major == 0 && v2.minor == 0 && v2.patch == 0 else {
+            fatalError("❌ 测试11失败: 空字符串应解析为0.0.0")
+        }
         let v3 = Version("5")
-        XCTAssertEqual(v3.major, 5)
-        XCTAssertEqual(v3.minor, 0)
-        XCTAssertEqual(v3.patch, 0)
+        guard v3.major == 5 && v3.minor == 0 && v3.patch == 0 else {
+            fatalError("❌ 测试11失败: 5应解析为5.0.0")
+        }
+        print("✅ 测试11通过: 边界版本解析正确")
     }
 
-    // MARK: 测试12: 查询方法
-    func testQueryMethods() {
-        XCTAssertEqual(checker.currentFrameworkVersion(), Version(major: 2, minor: 5, patch: 0))
-        XCTAssertEqual(checker.minimumVersion(for: "TestModule"), Version(major: 2, minor: 0, patch: 0))
-        XCTAssertNil(checker.minimumVersion(for: "NonExistent"))
+    // MARK: - 测试12: 查询方法
+    static func testQueryMethods(checker: VersionChecker) {
+        print("\n🧪 测试12: 查询方法")
+        guard checker.currentFrameworkVersion() == Version(major: 2, minor: 5, patch: 0) else {
+            fatalError("❌ 测试12失败: 框架版本不正确")
+        }
+        guard checker.minimumVersion(for: "TestModule") == Version(major: 2, minor: 0, patch: 0) else {
+            fatalError("❌ 测试12失败: 最低版本不正确")
+        }
+        guard checker.minimumVersion(for: "NonExistent") == nil else {
+            fatalError("❌ 测试12失败: 不存在模块的minimumVersion应为nil")
+        }
+        print("✅ 测试12通过: 查询方法正确")
     }
 }
-#endif

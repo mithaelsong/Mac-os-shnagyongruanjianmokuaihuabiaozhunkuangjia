@@ -625,15 +625,11 @@ public extension MenuManager {
 }
 
 // MARK: - 测试代码
-
-#if DEBUG
-
-/// 模块列表 UI 测试
-/// 运行方式：在 Swift 项目 Debug 模式下编译，或调用 `ModuleListUITests.runAll()`
+/// 模块列表UI功能验证
+/// 运行方式：在单元测试或 Playground 中调用 `ModuleListUITests.run()`
 public enum ModuleListUITests {
 
     // MARK: - 模拟模块
-
     final class MockModule: XRZModule {
         let name: String
         var startCalled = false
@@ -650,13 +646,10 @@ public enum ModuleListUITests {
         }
     }
 
-    // MARK: - 公共入口
-
-    public static func runAll() {
-        print("=== ModuleListUI Tests ===")
-
-        // 清理注册表
+    /// 运行所有测试
+    public static func run() {
         cleanupRegistry()
+        print("=== 模块列表UI测试 ===")
 
         testEmptyState()
         cleanupRegistry()
@@ -673,7 +666,7 @@ public enum ModuleListUITests {
         testModuleItemStateColors()
         cleanupRegistry()
 
-        print("\n🎉 所有 ModuleListUI 测试通过!")
+        print("\n=== 全部模块列表UI测试通过 ✅ ===")
     }
 
     // MARK: - 辅助
@@ -687,20 +680,18 @@ public enum ModuleListUITests {
 
     // MARK: - 测试1: 空状态
 
-    public static func testEmptyState() {
+    static func testEmptyState() {
         print("\n🧪 测试1: 空状态显示")
 
         let vc = ModuleListViewController()
         vc.loadViewIfNeeded()
-
-        // 初始刷新（注册表为空）
         vc.refresh()
 
         let listView = vc.view as! ModuleListUIView
-        guard listView.emptyLabel.isHidden == false else {
+        guard !listView.emptyLabel.isHidden else {
             fatalError("❌ 测试1失败: 空状态标签应可见")
         }
-        guard listView.scrollView.isHidden == true else {
+        guard listView.scrollView.isHidden else {
             fatalError("❌ 测试1失败: 滚动视图应隐藏")
         }
         guard listView.emptyLabel.stringValue == "暂无已加载模块" else {
@@ -712,13 +703,13 @@ public enum ModuleListUITests {
 
     // MARK: - 测试2: 显示已加载模块
 
-    public static func testDisplayLoadedModules() {
+    static func testDisplayLoadedModules() {
         print("\n🧪 测试2: 显示已加载模块")
 
         let registry = ModuleRegistry.shared
 
-        let modA = MockModule(name: "TestA")
-        let modB = MockModule(name: "TestB")
+        let modA = ModuleListUITests.MockModule(name: "TestA")
+        let modB = ModuleListUITests.MockModule(name: "TestB")
 
         registry.register(
             module: modA,
@@ -748,14 +739,14 @@ public enum ModuleListUITests {
         vc.refresh()
 
         let listView = vc.view as! ModuleListUIView
-        guard listView.emptyLabel.isHidden == true else {
+        guard listView.emptyLabel.isHidden else {
             fatalError("❌ 测试2失败: 空状态标签应隐藏")
         }
-        guard listView.scrollView.isHidden == false else {
+        guard !listView.scrollView.isHidden else {
             fatalError("❌ 测试2失败: 滚动视图应可见")
         }
         guard listView.tableView.numberOfRows == 2 else {
-            fatalError("❌ 测试2失败: 期望 2 行，实际 \(listView.tableView.numberOfRows)")
+            fatalError("❌ 测试2失败: 期望2行，实际\(listView.tableView.numberOfRows)")
         }
 
         print("✅ 测试2通过: 已加载模块正确显示")
@@ -763,7 +754,7 @@ public enum ModuleListUITests {
 
     // MARK: - 测试3: 状态指示器
 
-    public static func testStatusIndicator() {
+    static func testStatusIndicator() {
         print("\n🧪 测试3: 状态指示器")
 
         let indicator = StatusIndicatorView(frame: NSRect(x: 0, y: 0, width: 12, height: 12))
@@ -780,11 +771,11 @@ public enum ModuleListUITests {
 
     // MARK: - 测试4: 刷新方法
 
-    public static func testRefresh() {
+    static func testRefresh() {
         print("\n🧪 测试4: 刷新列表")
 
         let registry = ModuleRegistry.shared
-        registry.register(module: MockModule(name: "R1"), name: "R1")
+        registry.register(module: ModuleListUITests.MockModule(name: "R1"), name: "R1")
 
         let vc = ModuleListViewController()
         vc.loadViewIfNeeded()
@@ -793,24 +784,23 @@ public enum ModuleListUITests {
         let listView = vc.view as! ModuleListUIView
         let initialCount = listView.tableView.numberOfRows
         guard initialCount == 1 else {
-            fatalError("❌ 测试4失败: 初始应为 1 行，实际 \(initialCount)")
+            fatalError("❌ 测试4失败: 初始应为1行，实际\(initialCount)")
         }
 
-        // 再注册一个模块后刷新
-        registry.register(module: MockModule(name: "R2"), name: "R2")
+        registry.register(module: ModuleListUITests.MockModule(name: "R2"), name: "R2")
         vc.refresh()
 
         let newCount = listView.tableView.numberOfRows
         guard newCount == 2 else {
-            fatalError("❌ 测试4失败: 刷新后应为 2 行，实际 \(newCount)")
+            fatalError("❌ 测试4失败: 刷新后应为2行，实际\(newCount)")
         }
 
         print("✅ 测试4通过: 刷新列表正常工作")
     }
 
-    // MARK: - 测试5: 状态颜色
+    // MARK: - 测试5: 状态颜色映射
 
-    public static func testModuleItemStateColors() {
+    static func testModuleItemStateColors() {
         print("\n🧪 测试5: 状态颜色映射")
 
         let tests: [(ModuleListItemState, NSColor)] = [
@@ -822,12 +812,10 @@ public enum ModuleListUITests {
 
         for (state, expected) in tests {
             guard state.color == expected else {
-                fatalError("❌ 测试5失败: \(state) 颜色不匹配")
+                fatalError("❌ 测试5失败: \(state)颜色不匹配")
             }
         }
 
         print("✅ 测试5通过: 状态颜色映射正确")
     }
 }
-
-#endif

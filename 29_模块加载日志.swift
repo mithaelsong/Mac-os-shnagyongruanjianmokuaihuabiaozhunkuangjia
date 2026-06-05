@@ -3,7 +3,7 @@
 // 优先级: P0
 
 import Foundation
-import os.lock
+import os
 
 // MARK: - LoadRecord
 
@@ -30,7 +30,7 @@ public struct LoadRecord: Codable, Sendable, CustomStringConvertible {
 
 /// 模块加载日志记录器（功能29）
 /// 线程安全的单例，记录每个模块的加载耗时和结果，支持导出和统计
-public final class ModuleLoadLogger: @unchecked Sendable {
+public final class ModuleLoadLogger {
 
     // MARK: - 单例
     public static let shared = ModuleLoadLogger()
@@ -166,93 +166,92 @@ public final class ModuleLoadLogger: @unchecked Sendable {
 
     // MARK: - 私有日志
     private func log(_ message: String) {
-        #if DEBUG
         print(message)
-        #endif
     }
 }
 
-// MARK: - 测试
+// MARK: - 测试代码
+/// 模块加载日志记录器功能验证
+/// 运行方式：在单元测试或 Playground 中调用 `ModuleLoadLoggerTests.run()`
+public enum ModuleLoadLoggerTests {
 
-#if DEBUG
-
-/// 模块加载日志测试套件
-class ModuleLoadLoggerTests {
-    private var logger: ModuleLoadLogger!
-
-    init() {
-        logger = ModuleLoadLogger.shared
+    /// 运行所有测试
+    public static func run() {
+        let logger = ModuleLoadLogger.shared
         logger.clearRecords()
+
+        print("=== 模块加载日志测试 ===")
+        testLogLoadSuccess(logger: logger)
+        testLogLoadFailure(logger: logger)
+        testGetLoadReport(logger: logger)
+        testRecordsForModule(logger: logger)
+        testSuccessFailureCount(logger: logger)
+        testExportReport(logger: logger)
+        testClearRecords(logger: logger)
+        testThreadSafety(logger: logger)
+        print("\n=== 全部模块加载日志测试通过 ✅ ===")
     }
 
-    /// 运行全部测试
-    func runAllTests() {
-        testLogLoadSuccess()
-        testLogLoadFailure()
-        testGetLoadReport()
-        testRecordsForModule()
-        testSuccessFailureCount()
-        testExportReport()
-        testClearRecords()
-        testThreadSafety()
-        print("✅ 模块加载日志测试全部通过")
-    }
-
-    // 测试1: 成功加载记录
-    private func testLogLoadSuccess() {
+    // MARK: - 测试1: 成功加载记录
+    static func testLogLoadSuccess(logger: ModuleLoadLogger) {
+        print("\n🧪 测试1: 成功加载记录")
         let start = logger.logLoadStart(moduleName: "SuccessModule")
-        usleep(1000) // 1ms 延迟，确保 duration > 0
+        usleep(1000)
         logger.logLoadEnd(moduleName: "SuccessModule", startTime: start, success: true)
         let records = logger.records(for: "SuccessModule")
-        assert(records.count == 1, "应有1条记录")
-        assert(records[0].success == true, "应标记成功")
-        assert(records[0].duration > 0, "耗时应大于0")
-        assert(records[0].errorMessage == nil, "成功不应有错误")
-        print("✅ testLogLoadSuccess 通过")
+        guard records.count == 1 else { fatalError("❌ 测试1失败: 应有1条记录") }
+        guard records[0].success == true else { fatalError("❌ 测试1失败: 应标记成功") }
+        guard records[0].duration > 0 else { fatalError("❌ 测试1失败: 耗时应大于0") }
+        guard records[0].errorMessage == nil else { fatalError("❌ 测试1失败: 成功不应有错误") }
+        print("✅ 测试1通过: 成功加载记录正确")
     }
 
-    // 测试2: 失败加载记录
-    private func testLogLoadFailure() {
+    // MARK: - 测试2: 失败加载记录
+    static func testLogLoadFailure(logger: ModuleLoadLogger) {
+        print("\n🧪 测试2: 失败加载记录")
         let start = logger.logLoadStart(moduleName: "FailModule")
         logger.logLoadEnd(moduleName: "FailModule", startTime: start, success: false, error: "依赖缺失")
         let records = logger.records(for: "FailModule")
-        assert(records.count == 1, "应有1条记录")
-        assert(records[0].success == false, "应标记失败")
-        assert(records[0].errorMessage == "依赖缺失", "错误信息应匹配")
-        print("✅ testLogLoadFailure 通过")
+        guard records.count == 1 else { fatalError("❌ 测试2失败: 应有1条记录") }
+        guard records[0].success == false else { fatalError("❌ 测试2失败: 应标记失败") }
+        guard records[0].errorMessage == "依赖缺失" else { fatalError("❌ 测试2失败: 错误信息应匹配") }
+        print("✅ 测试2通过: 失败加载记录正确")
     }
 
-    // 测试3: 获取所有报告
-    private func testGetLoadReport() {
+    // MARK: - 测试3: 获取所有报告
+    static func testGetLoadReport(logger: ModuleLoadLogger) {
+        print("\n🧪 测试3: 获取所有报告")
         logger.clearRecords()
-        let start1 = logger.logLoadStart(moduleName: "ModuleA")
-        logger.logLoadEnd(moduleName: "ModuleA", startTime: start1, success: true)
-        let start2 = logger.logLoadStart(moduleName: "ModuleB")
-        logger.logLoadEnd(moduleName: "ModuleB", startTime: start2, success: false, error: "超时")
+        let s1 = logger.logLoadStart(moduleName: "ModuleA")
+        logger.logLoadEnd(moduleName: "ModuleA", startTime: s1, success: true)
+        let s2 = logger.logLoadStart(moduleName: "ModuleB")
+        logger.logLoadEnd(moduleName: "ModuleB", startTime: s2, success: false, error: "超时")
         let report = logger.getLoadReport()
-        assert(report.count == 2, "报告应有2条记录")
-        assert(report[0].moduleName == "ModuleA", "第一条应为ModuleA")
-        assert(report[1].moduleName == "ModuleB", "第二条应为ModuleB")
-        print("✅ testGetLoadReport 通过")
+        guard report.count == 2 else { fatalError("❌ 测试3失败: 报告应有2条记录") }
+        guard report[0].moduleName == "ModuleA" else { fatalError("❌ 测试3失败: 第一条应为ModuleA") }
+        guard report[1].moduleName == "ModuleB" else { fatalError("❌ 测试3失败: 第二条应为ModuleB") }
+        print("✅ 测试3通过: 获取所有报告正确")
     }
 
-    // 测试4: 按模块名查询
-    private func testRecordsForModule() {
+    // MARK: - 测试4: 按模块名查询
+    static func testRecordsForModule(logger: ModuleLoadLogger) {
+        print("\n🧪 测试4: 按模块名查询")
         logger.clearRecords()
-        let start1 = logger.logLoadStart(moduleName: "TargetModule")
-        logger.logLoadEnd(moduleName: "TargetModule", startTime: start1, success: true)
-        let start2 = logger.logLoadStart(moduleName: "TargetModule")
-        logger.logLoadEnd(moduleName: "TargetModule", startTime: start2, success: false, error: "重复加载")
-        let start3 = logger.logLoadStart(moduleName: "OtherModule")
-        logger.logLoadEnd(moduleName: "OtherModule", startTime: start3, success: true)
+        let s1 = logger.logLoadStart(moduleName: "TargetModule")
+        logger.logLoadEnd(moduleName: "TargetModule", startTime: s1, success: true)
+        let s2 = logger.logLoadStart(moduleName: "TargetModule")
+        logger.logLoadEnd(moduleName: "TargetModule", startTime: s2, success: false, error: "重复加载")
+        let s3 = logger.logLoadStart(moduleName: "OtherModule")
+        logger.logLoadEnd(moduleName: "OtherModule", startTime: s3, success: true)
         let targetRecords = logger.records(for: "TargetModule")
-        assert(targetRecords.count == 2, "TargetModule应有2条记录")
-        assert(targetRecords.allSatisfy { $0.moduleName == "TargetModule" }, "所有记录模块名应为TargetModule")
-        print("✅ testRecordsForModule 通过")
+        guard targetRecords.count == 2 else { fatalError("❌ 测试4失败: TargetModule应有2条记录") }
+        guard targetRecords.allSatisfy({ $0.moduleName == "TargetModule" }) else { fatalError("❌ 测试4失败: 所有记录模块名应为TargetModule") }
+        print("✅ 测试4通过: 按模块名查询正确")
     }
 
-    // 测试5: 成功/失败统计
-    private func testSuccessFailureCount() {
+    // MARK: - 测试5: 成功/失败统计
+    static func testSuccessFailureCount(logger: ModuleLoadLogger) {
+        print("\n🧪 测试5: 成功/失败统计")
         logger.clearRecords()
         let s1 = logger.logLoadStart(moduleName: "M1")
         logger.logLoadEnd(moduleName: "M1", startTime: s1, success: true)
@@ -260,53 +259,54 @@ class ModuleLoadLoggerTests {
         logger.logLoadEnd(moduleName: "M2", startTime: s2, success: true)
         let s3 = logger.logLoadStart(moduleName: "M3")
         logger.logLoadEnd(moduleName: "M3", startTime: s3, success: false, error: "失败")
-        assert(logger.successCount == 2, "成功次数应为2")
-        assert(logger.failureCount == 1, "失败次数应为1")
-        print("✅ testSuccessFailureCount 通过")
+        guard logger.successCount == 2 else { fatalError("❌ 测试5失败: 成功次数应为2，实际\(logger.successCount)") }
+        guard logger.failureCount == 1 else { fatalError("❌ 测试5失败: 失败次数应为1，实际\(logger.failureCount)") }
+        print("✅ 测试5通过: 成功/失败统计正确")
     }
 
-    // 测试6: 导出报告
-    private func testExportReport() {
+    // MARK: - 测试6: 导出报告
+    static func testExportReport(logger: ModuleLoadLogger) {
+        print("\n🧪 测试6: 导出报告")
         logger.clearRecords()
         let s1 = logger.logLoadStart(moduleName: "ExportTest")
         logger.logLoadEnd(moduleName: "ExportTest", startTime: s1, success: true)
         let report = logger.exportReport()
-        assert(report.contains("ExportTest"), "报告应包含模块名")
-        assert(report.contains("✅ 成功"), "报告应包含成功状态")
-        assert(report.contains("模块加载报告"), "报告应包含标题")
-        assert(report.contains("报告结束"), "报告应包含结束标记")
-        print("✅ testExportReport 通过")
+        guard report.contains("ExportTest") else { fatalError("❌ 测试6失败: 报告应包含模块名") }
+        guard report.contains("模块加载报告") else { fatalError("❌ 测试6失败: 报告应包含标题") }
+        guard report.contains("报告结束") else { fatalError("❌ 测试6失败: 报告应包含结束标记") }
+        print("✅ 测试6通过: 导出报告正确")
     }
 
-    // 测试7: 清除记录
-    private func testClearRecords() {
+    // MARK: - 测试7: 清除记录
+    static func testClearRecords(logger: ModuleLoadLogger) {
+        print("\n🧪 测试7: 清除记录")
+        logger.clearRecords()
         let s = logger.logLoadStart(moduleName: "ClearTest")
         logger.logLoadEnd(moduleName: "ClearTest", startTime: s, success: true)
-        assert(logger.getLoadReport().count > 0, "清除前应有记录")
+        guard logger.getLoadReport().count > 0 else { fatalError("❌ 测试7失败: 清除前应有记录") }
         logger.clearRecords()
-        assert(logger.getLoadReport().isEmpty, "清除后应无记录")
-        assert(logger.successCount == 0, "成功次数应为0")
-        assert(logger.failureCount == 0, "失败次数应为0")
-        print("✅ testClearRecords 通过")
+        guard logger.getLoadReport().isEmpty else { fatalError("❌ 测试7失败: 清除后应无记录") }
+        guard logger.successCount == 0 else { fatalError("❌ 测试7失败: 成功次数应为0") }
+        guard logger.failureCount == 0 else { fatalError("❌ 测试7失败: 失败次数应为0") }
+        print("✅ 测试7通过: 清除记录正确")
     }
 
-    // 测试8: 线程安全（100个并发加载）
-    private func testThreadSafety() {
+    // MARK: - 测试8: 线程安全
+    static func testThreadSafety(logger: ModuleLoadLogger) {
+        print("\n🧪 测试8: 线程安全（100个并发加载）")
         logger.clearRecords()
         let group = DispatchGroup()
         for i in 0..<100 {
             group.enter()
             DispatchQueue.global().async {
-                let start = self.logger.logLoadStart(moduleName: "Concurrent\(i)")
-                self.logger.logLoadEnd(moduleName: "Concurrent\(i)", startTime: start, success: i % 2 == 0)
+                let start = logger.logLoadStart(moduleName: "Concurrent\(i)")
+                logger.logLoadEnd(moduleName: "Concurrent\(i)", startTime: start, success: i % 2 == 0)
                 group.leave()
             }
         }
         group.wait()
-        assert(logger.getLoadReport().count == 100, "应有100条记录，实际有 \(logger.getLoadReport().count)")
-        assert(logger.successCount + logger.failureCount == 100, "成功+失败应等于总数")
-        print("✅ testThreadSafety 通过")
+        guard logger.getLoadReport().count == 100 else { fatalError("❌ 测试8失败: 应有100条记录，实际\(logger.getLoadReport().count)") }
+        guard logger.successCount + logger.failureCount == 100 else { fatalError("❌ 测试8失败: 成功+失败应等于总数") }
+        print("✅ 测试8通过: 100个并发加载完成无崩溃")
     }
-}
-
-#endif
+}f

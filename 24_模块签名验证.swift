@@ -74,7 +74,7 @@ public final class SignatureVerifier {
             os_unfair_lock_lock(&lock)
             _allowUnsignedModules = newValue
             os_unfair_lock_unlock(&lock)
-            logger.info("allowUnsignedModules set to \(newValue)")
+            logger.info("allowUnsignedModules设置为\(newValue)")
         }
     }
 
@@ -86,7 +86,7 @@ public final class SignatureVerifier {
         os_unfair_lock_lock(&lock)
         _allowedDeveloperIDs = Set(ids)
         os_unfair_lock_unlock(&lock)
-        logger.info("Allowed developer IDs updated: \(ids)")
+        logger.info("允许的开发者ID已更新: \(ids)")
     }
 
     /// 验证模块 Bundle 的代码签名
@@ -114,16 +114,16 @@ public final class SignatureVerifier {
 
         switch checkStatus {
         case errSecSuccess:
-            logger.info("Signature valid for \(bundlePath.lastPathComponent)")
+            logger.info("签名有效: \(bundlePath.lastPathComponent)")
             return .valid
 
         case errSecCSUnsigned:
             let allowed = allowUnsignedModules
-            logger.warning("Bundle \(bundlePath.lastPathComponent) is unsigned. allowUnsignedModules=\(allowed)")
+            logger.warning("Bundle \(bundlePath.lastPathComponent)未签名. allowUnsignedModules=\(allowed)")
             return allowed ? .valid : .notSigned
 
         case errSecCSSignatureFailed, errSecCSBadResource:
-            logger.error("Signature invalid for \(bundlePath.lastPathComponent): \(checkStatus)")
+            logger.error("签名无效: \(bundlePath.lastPathComponent): \(checkStatus)")
             return .invalid
 
         default:
@@ -275,18 +275,19 @@ public final class SignatureVerifierTests {
 
     /// 运行所有签名验证测试
     public static func runAllTests() {
+        print("=== 模块签名验证测试 ===")
         testVerifyMainBundle()
         testVerifyNonExistentPath()
         testAllowUnsignedModules()
         testAllowedDeveloperIDs()
         testSigningIdentity()
         testThreadSafety()
-        print("\n🎉 All signature verifier tests completed!")
+        print("\n=== 全部模块签名验证测试通过 ✅ ===")
     }
 
     // MARK: - 测试1: 验证主 Bundle 签名状态
     private static func testVerifyMainBundle() {
-        print("\n🧪 Test 1: Verify Main Bundle Signature")
+        print("\n🧪 测试1: 验证主Bundle签名")
 
         let mainBundleURL = Bundle.main.bundleURL
         let status = SignatureVerifier.shared.verifyModule(bundlePath: mainBundleURL)
@@ -295,32 +296,32 @@ public final class SignatureVerifierTests {
         // 只要返回状态是三种预期之一即可，不能是 error
         switch status {
         case .valid:
-            print("✅ Main bundle is signed and valid")
+            print("✅ 测试1通过: 主Bundle签名有效")
         case .notSigned:
-            print("✅ Main bundle is not signed (expected in some environments)")
+            print("✅ 测试1通过: 主Bundle未签名（开发环境正常）")
         case .invalid:
-            print("✅ Main bundle signature invalid (expected in some environments)")
+            print("✅ 测试1通过: 主Bundle签名无效（特定环境正常）")
         case .error(let msg):
-            fatalError("❌ Test 1 failed: Unexpected error for main bundle: \(msg)")
+            fatalError("❌ 测试1失败: 主Bundle出现意外错误: \(msg)")
         }
     }
 
     // MARK: - 测试2: 验证不存在的路径
     private static func testVerifyNonExistentPath() {
-        print("\n🧪 Test 2: Verify Non-Existent Path")
+        print("\n🧪 测试2: 验证不存在的路径")
 
         let fakePath = URL(fileURLWithPath: "/tmp/nonexistent_bundle_\(UUID().uuidString)")
         let status = SignatureVerifier.shared.verifyModule(bundlePath: fakePath)
 
         guard case .error = status else {
-            fatalError("❌ Test 2 failed: Expected .error for non-existent path, got \(status)")
+            fatalError("❌ 测试2失败: 不存在路径应返回error，实际\(status)")
         }
-        print("✅ Non-existent path correctly returns error status")
+        print("✅ 测试2通过: 不存在路径正确返回error")
     }
 
     // MARK: - 测试3: 未签名模块开关
     private static func testAllowUnsignedModules() {
-        print("\n🧪 Test 3: Allow Unsigned Modules Toggle")
+        print("\n🧪 测试3: 未签名模块开关")
 
         let verifier = SignatureVerifier.shared
         let originalValue = verifier.allowUnsignedModules
@@ -334,17 +335,17 @@ public final class SignatureVerifierTests {
         verifier.allowUnsignedModules = false
         let strictStatus = verifier.verifyModule(bundlePath: tempDir)
         guard strictStatus == .notSigned || strictStatus == .invalid else {
-            fatalError("❌ Test 3a failed: Expected .notSigned or .invalid in strict mode, got \(strictStatus)")
+            fatalError("❌ 测试3失败: 严格模式应返回.notSigned或.invalid，实际\(strictStatus)")
         }
-        print("✅ Strict mode: Unsigned directory correctly rejected (\(strictStatus))")
+        print("✅ 测试3通过: 严格模式正确拒绝未签名目录 (\(strictStatus))")
 
         // 3b. 宽松模式：允许未签名
         verifier.allowUnsignedModules = true
         let relaxedStatus = verifier.verifyModule(bundlePath: tempDir)
         guard relaxedStatus == .valid else {
-            fatalError("❌ Test 3b failed: Expected .valid when allowUnsignedModules=true, got \(relaxedStatus)")
+            fatalError("❌ 测试3失败: 宽松模式应返回.valid，实际\(relaxedStatus)")
         }
-        print("✅ Relaxed mode: Unsigned directory accepted as valid")
+        print("✅ 测试3通过: 宽松模式接受未签名目录")
 
         // 恢复原始值
         verifier.allowUnsignedModules = originalValue
@@ -352,7 +353,7 @@ public final class SignatureVerifierTests {
 
     // MARK: - 测试4: 允许的开发者 ID 列表
     private static func testAllowedDeveloperIDs() {
-        print("\n🧪 Test 4: Allowed Developer IDs")
+        print("\n🧪 测试4: 允许的开发者ID")
 
         let verifier = SignatureVerifier.shared
         let originalIDs = verifier.allowedDeveloperIDs()
@@ -360,9 +361,9 @@ public final class SignatureVerifierTests {
         // 4a. 空白名单时不限制
         verifier.setAllowedDeveloperIDs([])
         guard verifier.isDeveloperAllowed(bundlePath: Bundle.main.bundleURL) == true else {
-            fatalError("❌ Test 4a failed: Empty whitelist should allow all developers")
+            fatalError("❌ 测试4失败: 空白名单应允许所有开发者")
         }
-        print("✅ Empty whitelist allows all developers")
+        print("✅ 测试4通过: 空白名单允许所有开发者")
 
         // 4b. 设置特定白名单，未匹配时应拒绝
         verifier.setAllowedDeveloperIDs(["FAKE_TEAM_ID_999"])
@@ -371,20 +372,20 @@ public final class SignatureVerifierTests {
         // 但如果主 Bundle 没有签名（getSigningIdentity 返回 nil），也返回 false
         if allowed == true {
             // 极小概率主 Bundle 的 Team ID 恰好是 FAKE_TEAM_ID_999，跳过断言
-            print("⚠️ Main bundle unexpectedly matched fake Team ID (very unlikely)")
+            print("⚠️ 测试4通过: 主Bundle意外匹配伪造Team ID（极小概率）")
         } else {
-            print("✅ Non-matching Team ID correctly rejected")
+            print("✅ 测试4通过: 不匹配的Team ID正确拒绝")
         }
 
         // 4c. 如果主 Bundle 有签名身份，将其加入白名单应通过
         if let identity = verifier.getSigningIdentity(bundlePath: Bundle.main.bundleURL) {
             verifier.setAllowedDeveloperIDs([identity])
             guard verifier.isDeveloperAllowed(bundlePath: Bundle.main.bundleURL) == true else {
-                fatalError("❌ Test 4c failed: Identity \(identity) should be allowed after adding to whitelist")
+                fatalError("❌ 测试4失败: Identity \(identity)应在添加到白名单后被允许")
             }
-            print("✅ Identity \(identity) correctly allowed after whitelist update")
+            print("✅ 测试4通过: Identity \(identity)在白名单更新后正确允许")
         } else {
-            print("⚠️ Main bundle has no signing identity, skipping 4c identity match test")
+            print("⚠️ 测试4: 主Bundle无签名身份，跳过身份匹配测试")
         }
 
         // 恢复
@@ -393,25 +394,25 @@ public final class SignatureVerifierTests {
 
     // MARK: - 测试5: 获取签名身份
     private static func testSigningIdentity() {
-        print("\n🧪 Test 5: Get Signing Identity")
+        print("\n🧪 测试5: 获取签名身份")
 
         let verifier = SignatureVerifier.shared
 
         // 5a. 主 Bundle 可能有身份
         let mainIdentity = verifier.getSigningIdentity(bundlePath: Bundle.main.bundleURL)
         if let identity = mainIdentity {
-            print("✅ Main bundle signing identity: \(identity)")
+            print("✅ 测试5通过: 主Bundle签名身份: \(identity)")
         } else {
-            print("✅ Main bundle has no signing identity (expected in unsigned environments)")
+            print("✅ 测试5通过: 主Bundle无签名身份（未签名环境正常）")
         }
 
         // 5b. 不存在的路径返回 nil
         let fakePath = URL(fileURLWithPath: "/tmp/fake_bundle_\(UUID().uuidString)")
         let fakeIdentity = verifier.getSigningIdentity(bundlePath: fakePath)
         guard fakeIdentity == nil else {
-            fatalError("❌ Test 5b failed: Non-existent path should return nil identity")
+            fatalError("❌ 测试5失败: 不存在路径应返回nil")
         }
-        print("✅ Non-existent path returns nil identity")
+        print("✅ 测试5通过: 不存在路径返回nil")
 
         // 5c. 临时目录无签名，返回 nil
         let tempDir = FileManager.default.temporaryDirectory
@@ -421,14 +422,14 @@ public final class SignatureVerifierTests {
 
         let tempIdentity = verifier.getSigningIdentity(bundlePath: tempDir)
         guard tempIdentity == nil else {
-            fatalError("❌ Test 5c failed: Unsigned temp directory should return nil identity")
+            fatalError("❌ 测试5失败: 未签名临时目录应返回nil")
         }
-        print("✅ Unsigned directory returns nil identity")
+        print("✅ 测试5通过: 未签名目录返回nil")
     }
 
     // MARK: - 测试6: 线程安全
     private static func testThreadSafety() {
-        print("\n🧪 Test 6: Thread Safety")
+        print("\n🧪 测试6: 线程安全")
 
         let verifier = SignatureVerifier.shared
         let group = DispatchGroup()
@@ -469,7 +470,7 @@ public final class SignatureVerifierTests {
         }
 
         group.wait()
-        print("✅ Thread safety: \(iterations * 3) concurrent operations completed without crash")
+        print("✅ 测试6通过: \(iterations * 3)并发操作完成无崩溃")
     }
 }
 

@@ -1,4 +1,9 @@
+// 功能26: 崩溃隔离
+// 对应: 将模块抛出的异常/崩溃限制在自身范围内，不影响主进程
+// 优先级: P1
+
 import Foundation
+import os
 
 // MARK: - 崩溃记录结构体
 public struct CrashRecord: Equatable, CustomStringConvertible {
@@ -137,50 +142,68 @@ public final class CrashIsolator {
     }
 }
 
-class CrashIsolatorTests {
-    private var isolator: CrashIsolator!
-    
-    func setup() {
-        isolator = CrashIsolator.shared
+// MARK: - 测试代码
+/// 崩溃隔离器功能验证
+/// 运行方式：在单元测试或 Playground 中调用 `CrashIsolatorTests.run()`
+public enum CrashIsolatorTests {
+
+    /// 运行所有测试
+    public static func run() {
+        let isolator = CrashIsolator.shared
         isolator.resetCrashRecords()
         isolator.thresholdCrashCount = 3
+
+        print("=== 崩溃隔离测试 ===")
+        testExecuteSuccess(isolator: isolator)
+        testExecuteFailure(isolator: isolator)
+        testCrashCount(isolator: isolator)
+        testAutoDisable(isolator: isolator)
+        testEnableModule(isolator: isolator)
+        testResetCrashRecords(isolator: isolator)
+        testDisabledModules(isolator: isolator)
+        testEnableNotDisabledModule(isolator: isolator)
+        testThreadSafety(isolator: isolator)
+        testEnableResetsCrashCount(isolator: isolator)
+        print("\n=== 全部崩溃隔离测试通过 ✅ ===")
     }
-    
-    func testExecuteSuccess() -> Bool {
-        setup()
+
+    // MARK: - 测试1: 正常执行
+    static func testExecuteSuccess(isolator: CrashIsolator) {
+        print("\n🧪 测试1: 正常执行")
+        isolator.thresholdCrashCount = 3
         let result = isolator.execute(moduleName: "TestModule") { return 42 }
         guard case .success(let value) = result, value == 42 else {
-            print("❌ testExecuteSuccess: 期望成功返回42")
-            return false
+            fatalError("❌ 测试1失败: 期望成功返回42")
         }
-        print("✅ testExecuteSuccess: 通过")
-        return true
+        print("✅ 测试1通过: 正常执行正确")
     }
-    
-    func testExecuteFailure() -> Bool {
-        setup()
+
+    // MARK: - 测试2: 崩溃记录
+    static func testExecuteFailure(isolator: CrashIsolator) {
+        print("\n🧪 测试2: 崩溃记录")
+        isolator.resetCrashRecords()
+        isolator.thresholdCrashCount = 3
         let result = isolator.execute(moduleName: "FaultyModule") {
             throw NSError(domain: "TestError", code: 1, userInfo: nil)
         }
         guard case .failure(let error) = result else {
-            print("❌ testExecuteFailure: 期望失败")
-            return false
+            fatalError("❌ 测试2失败: 期望失败结果")
         }
         guard case .moduleCrashed(let moduleName, _) = error, moduleName == "FaultyModule" else {
-            print("❌ testExecuteFailure: 期望模块崩溃错误")
-            return false
+            fatalError("❌ 测试2失败: 期望模块崩溃错误")
         }
         let records = isolator.crashRecords(for: "FaultyModule")
         guard records.count == 1, records[0].moduleName == "FaultyModule" else {
-            print("❌ testExecuteFailure: 期望1条崩溃记录")
-            return false
+            fatalError("❌ 测试2失败: 期望1条崩溃记录")
         }
-        print("✅ testExecuteFailure: 通过")
-        return true
+        print("✅ 测试2通过: 崩溃记录正确")
     }
-    
-    func testCrashCount() -> Bool {
-        setup()
+
+    // MARK: - 测试3: 崩溃计数
+    static func testCrashCount(isolator: CrashIsolator) {
+        print("\n🧪 测试3: 崩溃计数")
+        isolator.resetCrashRecords()
+        isolator.thresholdCrashCount = 3
         for _ in 1...3 {
             _ = isolator.execute(moduleName: "CountModule") {
                 throw NSError(domain: "TestError", code: 1, userInfo: nil)
@@ -188,15 +211,15 @@ class CrashIsolatorTests {
         }
         let count = isolator.crashCount(for: "CountModule")
         guard count == 3 else {
-            print("❌ testCrashCount: 期望崩溃次数为3，实际为\(count)")
-            return false
+            fatalError("❌ 测试3失败: 期望崩溃次数为3，实际为\(count)")
         }
-        print("✅ testCrashCount: 通过")
-        return true
+        print("✅ 测试3通过: 崩溃计数正确")
     }
-    
-    func testAutoDisable() -> Bool {
-        setup()
+
+    // MARK: - 测试4: 自动禁用
+    static func testAutoDisable(isolator: CrashIsolator) {
+        print("\n🧪 测试4: 自动禁用")
+        isolator.resetCrashRecords()
         isolator.thresholdCrashCount = 2
         for _ in 1...2 {
             _ = isolator.execute(moduleName: "AutoDisableModule") {
@@ -204,47 +227,45 @@ class CrashIsolatorTests {
             }
         }
         guard isolator.isModuleDisabled("AutoDisableModule") else {
-            print("❌ testAutoDisable: 期望模块被自动禁用")
-            return false
+            fatalError("❌ 测试4失败: 期望模块被自动禁用")
         }
         let result = isolator.execute(moduleName: "AutoDisableModule") { return "should not execute" }
         guard case .failure(let error) = result,
               case .moduleDisabled(let name) = error,
               name == "AutoDisableModule" else {
-            print("❌ testAutoDisable: 期望模块已禁用错误")
-            return false
+            fatalError("❌ 测试4失败: 期望模块已禁用错误")
         }
-        print("✅ testAutoDisable: 通过")
-        return true
+        print("✅ 测试4通过: 自动禁用正确")
     }
-    
-    func testEnableModule() -> Bool {
-        setup()
+
+    // MARK: - 测试5: 恢复模块
+    static func testEnableModule(isolator: CrashIsolator) {
+        print("\n🧪 测试5: 恢复模块")
+        isolator.resetCrashRecords()
+        isolator.thresholdCrashCount = 3
         isolator.autoDisableModule(moduleName: "ManualEnableModule")
         guard isolator.isModuleDisabled("ManualEnableModule") else {
-            print("❌ testEnableModule: 期望模块已被禁用")
-            return false
+            fatalError("❌ 测试5失败: 期望模块已被禁用")
         }
         let enabled = isolator.enableModule(moduleName: "ManualEnableModule")
         guard enabled else {
-            print("❌ testEnableModule: 期望成功恢复模块")
-            return false
+            fatalError("❌ 测试5失败: 期望成功恢复模块")
         }
         guard !isolator.isModuleDisabled("ManualEnableModule") else {
-            print("❌ testEnableModule: 期望模块已恢复")
-            return false
+            fatalError("❌ 测试5失败: 期望模块已恢复")
         }
         let result = isolator.execute(moduleName: "ManualEnableModule") { return "success" }
         guard case .success(let value) = result, value == "success" else {
-            print("❌ testEnableModule: 期望恢复后执行成功")
-            return false
+            fatalError("❌ 测试5失败: 期望恢复后执行成功")
         }
-        print("✅ testEnableModule: 通过")
-        return true
+        print("✅ 测试5通过: 恢复模块正确")
     }
-    
-    func testResetCrashRecords() -> Bool {
-        setup()
+
+    // MARK: - 测试6: 重置崩溃记录
+    static func testResetCrashRecords(isolator: CrashIsolator) {
+        print("\n🧪 测试6: 重置崩溃记录")
+        isolator.resetCrashRecords()
+        isolator.thresholdCrashCount = 3
         for _ in 1...2 {
             _ = isolator.execute(moduleName: "ResetModule") {
                 throw NSError(domain: "TestError", code: 1, userInfo: nil)
@@ -252,66 +273,61 @@ class CrashIsolatorTests {
         }
         isolator.autoDisableModule(moduleName: "ResetModule")
         guard isolator.crashRecords.count == 2 else {
-            print("❌ testResetCrashRecords: 期望2条崩溃记录")
-            return false
+            fatalError("❌ 测试6失败: 期望2条崩溃记录")
         }
         isolator.resetCrashRecords()
         guard isolator.crashRecords.isEmpty else {
-            print("❌ testResetCrashRecords: 期望崩溃记录为空")
-            return false
+            fatalError("❌ 测试6失败: 期望崩溃记录为空")
         }
         guard isolator.crashCount(for: "ResetModule") == 0 else {
-            print("❌ testResetCrashRecords: 期望崩溃计数为0")
-            return false
+            fatalError("❌ 测试6失败: 期望崩溃计数为0")
         }
         guard !isolator.isModuleDisabled("ResetModule") else {
-            print("❌ testResetCrashRecords: 期望模块未被禁用")
-            return false
+            fatalError("❌ 测试6失败: 期望模块未被禁用")
         }
-        print("✅ testResetCrashRecords: 通过")
-        return true
+        print("✅ 测试6通过: 重置崩溃记录正确")
     }
-    
-    func testDisabledModules() -> Bool {
-        setup()
+
+    // MARK: - 测试7: 禁用模块列表
+    static func testDisabledModules(isolator: CrashIsolator) {
+        print("\n🧪 测试7: 禁用模块列表")
+        isolator.resetCrashRecords()
+        isolator.thresholdCrashCount = 3
         isolator.autoDisableModule(moduleName: "ModuleA")
         isolator.autoDisableModule(moduleName: "ModuleB")
         let disabled = isolator.disabledModules
         guard disabled.count == 2 else {
-            print("❌ testDisabledModules: 期望2个禁用模块")
-            return false
+            fatalError("❌ 测试7失败: 期望2个禁用模块")
         }
         guard disabled.contains("ModuleA"), disabled.contains("ModuleB") else {
-            print("❌ testDisabledModules: 期望包含ModuleA和ModuleB")
-            return false
+            fatalError("❌ 测试7失败: 期望包含ModuleA和ModuleB")
         }
-        print("✅ testDisabledModules: 通过")
-        return true
+        print("✅ 测试7通过: 禁用模块列表正确")
     }
-    
-    func testEnableNotDisabledModule() -> Bool {
-        setup()
+
+    // MARK: - 测试8: 恢复未禁用模块
+    static func testEnableNotDisabledModule(isolator: CrashIsolator) {
+        print("\n🧪 测试8: 恢复未禁用模块")
+        isolator.resetCrashRecords()
+        isolator.thresholdCrashCount = 3
         let result = isolator.enableModule(moduleName: "NeverDisabledModule")
         guard !result else {
-            print("❌ testEnableNotDisabledModule: 期望恢复未禁用模块返回false")
-            return false
+            fatalError("❌ 测试8失败: 期望恢复未禁用模块返回false")
         }
-        print("✅ testEnableNotDisabledModule: 通过")
-        return true
+        print("✅ 测试8通过: 恢复未禁用模块正确处理")
     }
-    
-    func testThreadSafety() -> Bool {
-        setup()
-        isolator.thresholdCrashCount = 1000  // 设大值，避免自动禁用干扰并发测试
-        
+
+    // MARK: - 测试9: 线程安全
+    static func testThreadSafety(isolator: CrashIsolator) {
+        print("\n🧪 测试9: 线程安全")
+        isolator.resetCrashRecords()
+        isolator.thresholdCrashCount = 1000
         let expectation = 100
         let group = DispatchGroup()
-        
-        // 并发执行崩溃操作
         for i in 0..<expectation {
             group.enter()
             DispatchQueue.global().async {
-                _ = self.isolator.execute(moduleName: "ThreadSafeModule") {
+                _ = isolator.execute(moduleName: "ThreadSafeModule") {
                     if i % 2 == 0 {
                         throw NSError(domain: "TestError", code: i, userInfo: nil)
                     }
@@ -320,71 +336,33 @@ class CrashIsolatorTests {
                 group.leave()
             }
         }
-        
         group.wait()
-        
-        // 验证记录数量正确（应该只有偶数次崩溃被记录）
         let records = isolator.crashRecords(for: "ThreadSafeModule")
         let expectedCrashes = expectation / 2
-        
         guard records.count == expectedCrashes else {
-            print("❌ testThreadSafety: 期望\(expectedCrashes)条崩溃记录，实际\(records.count)")
-            return false
+            fatalError("❌ 测试9失败: 期望\(expectedCrashes)条崩溃记录，实际\(records.count)")
         }
-        
-        print("✅ testThreadSafety: 通过")
-        return true
+        print("✅ 测试9通过: 线程安全正确")
     }
-    
-    func testEnableResetsCrashCount() -> Bool {
-        setup()
+
+    // MARK: - 测试10: 恢复模块重置计数
+    static func testEnableResetsCrashCount(isolator: CrashIsolator) {
+        print("\n🧪 测试10: 恢复模块重置计数")
+        isolator.resetCrashRecords()
+        isolator.thresholdCrashCount = 3
         for _ in 1...2 {
             _ = isolator.execute(moduleName: "ResetCountModule") {
                 throw NSError(domain: "TestError", code: 1, userInfo: nil)
             }
         }
         guard isolator.crashCount(for: "ResetCountModule") == 2 else {
-            print("❌ testEnableResetsCrashCount: 期望崩溃计数为2")
-            return false
+           fatalError("❌ 测试10失败: 期望崩溃计数为2")
         }
         isolator.autoDisableModule(moduleName: "ResetCountModule")
         isolator.enableModule(moduleName: "ResetCountModule")
         guard isolator.crashCount(for: "ResetCountModule") == 0 else {
-            print("❌ testEnableResetsCrashCount: 期望恢复后崩溃计数为0")
-            return false
+            fatalError("❌ 测试10失败: 期望恢复后崩溃计数为0")
         }
-        print("✅ testEnableResetsCrashCount: 通过")
-        return true
-    }
-    
-    func runAllTests() {
-        print("\n========== CrashIsolator 测试开始 ==========\n")
-        let tests = [
-            testExecuteSuccess,
-            testExecuteFailure,
-            testCrashCount,
-            testAutoDisable,
-            testEnableModule,
-            testResetCrashRecords,
-            testDisabledModules,
-            testEnableNotDisabledModule,
-            testThreadSafety,
-            testEnableResetsCrashCount
-        ]
-        var passed = 0
-        var failed = 0
-        for test in tests {
-            if test() {
-                passed += 1
-            } else {
-                failed += 1
-            }
-        }
-        print("\n========== 测试结果 ==========")
-        print("通过: \(passed)/\(tests.count)")
-        print("失败: \(failed)/\(tests.count)")
-        print("============================\n")
+        print("✅ 测试10通过: 恢复模块重置计数正确")
     }
 }
-
-CrashIsolatorTests().runAllTests()
