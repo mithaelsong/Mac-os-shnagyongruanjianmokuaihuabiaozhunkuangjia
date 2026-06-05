@@ -1,3 +1,7 @@
+// 功能3: 初始化配置系统
+// 对应: 从Info.plist/JSON/UserDefaults加载模块配置，持久化到JSON
+// 优先级: P0
+
 import Foundation
 import os
 
@@ -259,7 +263,7 @@ public final class ConfigSystem {
         
         scheduleSave()
         UserDefaults.standard.set(enabled, forKey: "XRZModule.\(moduleName).enabled")
-        logger.info("Module \(moduleName) enabled set to \(enabled)")
+        logger.info("模块 \(moduleName) 启用状态设置为 \(enabled)")
     }
     
     /// 设置模块优先级
@@ -279,7 +283,7 @@ public final class ConfigSystem {
         
         scheduleSave()
         UserDefaults.standard.set(priority, forKey: "XRZModule.\(moduleName).priority")
-        logger.info("Module \(moduleName) priority set to \(priority)")
+        logger.info("模块 \(moduleName) 优先级设置为 \(priority)")
     }
     
     /// 设置模块自定义配置项
@@ -298,7 +302,7 @@ public final class ConfigSystem {
         os_unfair_lock_unlock(&storage.lock)
         
         scheduleSave()
-        logger.info("Module \(moduleName) custom setting [\(key)] = \(value)")
+        logger.info("模块 \(moduleName) 自定义配置 [\(key)] = \(value)")
     }
     
     /// 注册/更新完整模块配置
@@ -311,7 +315,7 @@ public final class ConfigSystem {
         os_unfair_lock_unlock(&storage.lock)
         
         scheduleSave()
-        logger.info("Registered module \(moduleName)")
+        logger.info("已注册模块 \(moduleName)")
     }
     
     // MARK: - 辅助查询
@@ -498,12 +502,12 @@ public final class ConfigSystemTests {
         testPersistence()
         testThreadSafety()
         testUserDefaultsOverride()
-        print("\n🎉 All configuration system tests completed!")
+        print("\n=== 全部配置系统测试通过 ✅ ===")
     }
     
     // MARK: - 测试1: ConfigValue 编码解码
     public static func testConfigValueCodable() {
-        print("\n🧪 Test 1: ConfigValue Codable")
+        print("\n🧪 测试1: ConfigValue编码解码")
         
         let originalValues: [ConfigValue] = [
             .string("https://api.example.com"),
@@ -522,17 +526,17 @@ public final class ConfigSystemTests {
             let decoded = try decoder.decode([ConfigValue].self, from: data)
             
             guard decoded == originalValues else {
-                fatalError("❌ Test 1 failed: Decoded values don't match\n   Original: \(originalValues)\n   Decoded:  \(decoded)")
+                fatalError("❌ 测试1失败: 解码值不匹配\n   Original: \(originalValues)\n   Decoded:  \(decoded)")
             }
-            print("✅ Test 1 passed: ConfigValue encode/decode correct")
+            print("✅ 测试1通过: ConfigValue编码解码正确")
         } catch {
-            fatalError("❌ Test 1 failed with error: \(error)")
+            fatalError("❌ 测试1失败，错误: \(error)")
         }
     }
     
     // MARK: - 测试2: ModuleConfig 编码解码
     public static func testModuleConfigCodable() {
-        print("\n🧪 Test 2: ModuleConfig Codable")
+        print("\n🧪 测试2: ModuleConfig编码解码")
         
         let original = ModuleConfig(
             moduleName: "TestModule",
@@ -555,17 +559,17 @@ public final class ConfigSystemTests {
             let decoded = try decoder.decode(ModuleConfig.self, from: data)
             
             guard decoded == original else {
-                fatalError("❌ Test 2 failed: Decoded config doesn't match\n   Original: \(original)\n   Decoded:  \(decoded)")
+                fatalError("❌ 测试2失败: 解码配置不匹配\n   Original: \(original)\n   Decoded:  \(decoded)")
             }
-            print("✅ Test 2 passed: ModuleConfig encode/decode correct")
+            print("✅ 测试2通过: ModuleConfig编码解码正确")
         } catch {
-            fatalError("❌ Test 2 failed with error: \(error)")
+            fatalError("❌ 测试2失败，错误: \(error)")
         }
     }
     
     // MARK: - 测试3: ConfigSystem 基本 API
     public static func testBasicAPI() {
-        print("\n🧪 Test 3: Basic API")
+        print("\n🧪 测试3: 基本API")
         
         // 重置环境
         ConfigSystem.shared.resetForTests()
@@ -593,13 +597,13 @@ public final class ConfigSystemTests {
         let useSSL = ConfigSystem.shared.getCustomSetting("TradeModule", "useSSL")
         let symbols = ConfigSystem.shared.getCustomSetting("TradeModule", "symbols")
         
-        guard enabled == true else { fatalError("❌ Test 3 failed: enabled should be true") }
-        guard priority == 10 else { fatalError("❌ Test 3 failed: priority should be 10, got \(priority)") }
-        guard deps == ["CoreModule", "DataModule"] else { fatalError("❌ Test 3 failed: dependencies mismatch: \(deps)") }
-        guard exchange?.stringValue == "Binance" else { fatalError("❌ Test 3 failed: exchange should be Binance") }
-        guard timeout?.intValue == 30 else { fatalError("❌ Test 3 failed: timeout should be 30") }
-        guard useSSL?.boolValue == true else { fatalError("❌ Test 3 failed: useSSL should be true") }
-        guard symbols?.stringArrayValue == ["BTC", "ETH"] else { fatalError("❌ Test 3 failed: symbols mismatch: \(symbols?.stringArrayValue ?? [])") }
+        guard enabled == true else { fatalError("❌ 测试3失败: enabled应为true") }
+        guard priority == 10 else { fatalError("❌ 测试3失败: priority应为10，实际 \(priority)") }
+        guard deps == ["CoreModule", "DataModule"] else { fatalError("❌ 测试3失败: 依赖不匹配: \(deps)") }
+        guard exchange?.stringValue == "Binance" else { fatalError("❌ 测试3失败: exchange应为Binance") }
+        guard timeout?.intValue == 30 else { fatalError("❌ 测试3失败: timeout应为30") }
+        guard useSSL?.boolValue == true else { fatalError("❌ 测试3失败: useSSL应为true") }
+        guard symbols?.stringArrayValue == ["BTC", "ETH"] else { fatalError("❌ 测试3失败: symbols不匹配: \(symbols?.stringArrayValue ?? [])") }
         
         // 测试未知模块默认值
         let unknownEnabled = ConfigSystem.shared.isModuleEnabled("UnknownModule")
@@ -607,33 +611,33 @@ public final class ConfigSystemTests {
         let unknownDeps = ConfigSystem.shared.getModuleDependencies("UnknownModule")
         let unknownSetting = ConfigSystem.shared.getCustomSetting("UnknownModule", "key")
         
-        guard unknownEnabled == false else { fatalError("❌ Test 3 failed: unknown module should be disabled") }
-        guard unknownPriority == 100 else { fatalError("❌ Test 3 failed: unknown priority should be 100, got \(unknownPriority)") }
-        guard unknownDeps.isEmpty else { fatalError("❌ Test 3 failed: unknown deps should be empty, got \(unknownDeps)") }
-        guard unknownSetting == nil else { fatalError("❌ Test 3 failed: unknown setting should be nil") }
+        guard unknownEnabled == false else { fatalError("❌ 测试3失败: 未知模块应为禁用") }
+        guard unknownPriority == 100 else { fatalError("❌ 测试3失败: 未知priority应为100，实际 \(unknownPriority)") }
+        guard unknownDeps.isEmpty else { fatalError("❌ 测试3失败: 未知deps应为空，实际 \(unknownDeps)") }
+        guard unknownSetting == nil else { fatalError("❌ 测试3失败: 未知设置应为nil") }
         
         // 测试 setModuleEnabled
         ConfigSystem.shared.setModuleEnabled("TradeModule", false)
         let disabled = ConfigSystem.shared.isModuleEnabled("TradeModule")
-        guard disabled == false else { fatalError("❌ Test 3 failed: setModuleEnabled failed") }
+        guard disabled == false else { fatalError("❌ 测试3失败: setModuleEnabled失败") }
         
         // 测试 allModuleNames
         let names = ConfigSystem.shared.allModuleNames()
-        guard names == ["TradeModule"] else { fatalError("❌ Test 3 failed: allModuleNames mismatch: \(names)") }
+        guard names == ["TradeModule"] else { fatalError("❌ 测试3失败: allModuleNames不匹配: \(names)") }
         
         // 测试 getModuleConfig
         guard let config = ConfigSystem.shared.getModuleConfig("TradeModule") else {
-            fatalError("❌ Test 3 failed: getModuleConfig returned nil")
+            fatalError("❌ 测试3失败: getModuleConfig返回nil")
         }
-        guard config.moduleName == "TradeModule" else { fatalError("❌ Test 3 failed: getModuleConfig name mismatch") }
-        guard config.enabled == false else { fatalError("❌ Test 3 failed: getModuleConfig enabled mismatch") }
+        guard config.moduleName == "TradeModule" else { fatalError("❌ 测试3失败: getModuleConfig名称不匹配") }
+        guard config.enabled == false else { fatalError("❌ 测试3失败: getModuleConfig enabled不匹配") }
         
-        print("✅ Test 3 passed: All API methods work correctly")
+        print("✅ 测试3通过: 所有API方法工作正常")
     }
     
     // MARK: - 测试4: 持久化到 JSON 文件
     public static func testPersistence() {
-        print("\n🧪 Test 4: Persistence to JSON")
+        print("\n🧪 测试4: 持久化到JSON")
         
         ConfigSystem.shared.resetForTests()
         
@@ -657,7 +661,7 @@ public final class ConfigSystemTests {
         let exists = FileManager.default.fileExists(atPath: configFile.path)
         
         guard exists else {
-            fatalError("❌ Test 4 failed: Config file not found at \(configFile.path)")
+            fatalError("❌ 测试4失败: 配置文件未找到于 \(configFile.path)")
         }
         
         // 验证文件内容可读
@@ -666,24 +670,24 @@ public final class ConfigSystemTests {
             let decoded = try JSONDecoder().decode([String: ModuleConfig].self, from: data)
             
             guard let config = decoded["PersistModule"] else {
-                fatalError("❌ Test 4 failed: PersistModule not found in JSON")
+                fatalError("❌ 测试4失败: PersistModule未在JSON中找到")
             }
             
-            guard config.enabled == false else { fatalError("❌ Test 4 failed: persisted enabled mismatch") }
-            guard config.priority == 99 else { fatalError("❌ Test 4 failed: persisted priority mismatch") }
-            guard config.dependencies == ["Base"] else { fatalError("❌ Test 4 failed: persisted deps mismatch") }
-            guard config.customSettings["key"]?.stringValue == "value" else { fatalError("❌ Test 4 failed: persisted customSetting key mismatch") }
-            guard config.customSettings["newKey"]?.intValue == 123 else { fatalError("❌ Test 4 failed: persisted customSetting newKey mismatch") }
+            guard config.enabled == false else { fatalError("❌ 测试4失败: 持久化enabled不匹配") }
+            guard config.priority == 99 else { fatalError("❌ 测试4失败: 持久化priority不匹配") }
+            guard config.dependencies == ["Base"] else { fatalError("❌ 测试4失败: 持久化deps不匹配") }
+            guard config.customSettings["key"]?.stringValue == "value" else { fatalError("❌ 测试4失败: 持久化customSetting key不匹配") }
+            guard config.customSettings["newKey"]?.intValue == 123 else { fatalError("❌ 测试4失败: 持久化customSetting newKey不匹配") }
             
-            print("✅ Test 4 passed: Config persisted and verified in JSON")
+            print("✅ 测试4通过: 配置已持久化并在JSON中验证")
         } catch {
-            fatalError("❌ Test 4 failed to read/parse JSON: \(error)")
+            fatalError("❌ 测试4失败，读取/解析JSON: \(error)")
         }
     }
     
     // MARK: - 测试5: 线程安全
     public static func testThreadSafety() {
-        print("\n🧪 Test 5: Thread Safety (os_unfair_lock)")
+        print("\n🧪 测试5: 线程安全(os_unfair_lock)")
         
         ConfigSystem.shared.resetForTests()
         
@@ -713,12 +717,12 @@ public final class ConfigSystemTests {
         
         group.wait()
         
-        print("✅ Test 5 passed: \(threadCount * operationsPerThread) concurrent operations completed without crash")
+        print("✅ 测试5通过: \(threadCount * operationsPerThread) concurrent operations completed without crash")
     }
     
     // MARK: - 测试6: UserDefaults 覆盖
     public static func testUserDefaultsOverride() {
-        print("\n🧪 Test 6: UserDefaults Override")
+        print("\n🧪 测试6: UserDefaults覆盖")
         
         ConfigSystem.shared.resetForTests()
         
@@ -739,10 +743,10 @@ public final class ConfigSystemTests {
         let enabled = ConfigSystem.shared.isModuleEnabled("OverrideModule")
         let priority = ConfigSystem.shared.getModulePriority("OverrideModule")
         
-        guard enabled == false else { fatalError("❌ Test 6 failed: UserDefaults override for enabled failed, got \(enabled)") }
-        guard priority == 77 else { fatalError("❌ Test 6 failed: UserDefaults override for priority failed, got \(priority)") }
+        guard enabled == false else { fatalError("❌ 测试6失败: UserDefaults覆盖enabled失败，实际 \(enabled)") }
+        guard priority == 77 else { fatalError("❌ 测试6失败: UserDefaults覆盖priority失败，实际 \(priority)") }
         
-        print("✅ Test 6 passed: UserDefaults overrides applied correctly")
+        print("✅ 测试6通过: UserDefaults覆盖正确应用")
         
         // 清理
         UserDefaults.standard.removeObject(forKey: "XRZModule.OverrideModule.enabled")

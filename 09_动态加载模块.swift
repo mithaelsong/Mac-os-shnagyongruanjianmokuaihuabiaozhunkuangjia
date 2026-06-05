@@ -1,4 +1,4 @@
-// Function 9: Dynamic Module Loading
+// 功能9: 动态加载模块
 // Description: Load new .bundle or module folders at runtime
 // Priority: P1
 
@@ -24,19 +24,19 @@ public final class DynamicModuleLoader {
 
     // MARK: - Dynamic Loading
     public func load(from path: URL) -> ModuleLoadResult {
-        logger.info("Dynamic loading from: \(path.path)")
+        logger.info("动态加载路径: \(path.path)")
 
         // Scan directory
         let scanned = ModuleScanner.shared.scan(directory: path)
 
         guard let first = scanned.first else {
-            logger.warning("No valid module found at \(path.path)")
+            logger.warning("路径 \(path.path) 未找到有效模块")
             return .failure(.loadFailed(name: path.lastPathComponent, reason: "No valid module found"))
         }
 
         // Verify signature
         guard verifySignature(for: first) else {
-            logger.error("Signature validation failed for module: \(first.metadata.name)")
+            logger.error("签名验证失败: 模块 \(first.metadata.name)")
             return .failure(.loadFailed(name: first.metadata.name, reason: "Signature validation failed"))
         }
 
@@ -44,7 +44,7 @@ public final class DynamicModuleLoader {
         let compatibility = checkVersionCompatibility(for: first)
         switch compatibility {
         case .incompatible(let reason):
-            logger.error("Version incompatible for module \(first.metadata.name): \(reason)")
+            logger.error("版本不兼容: 模块 \(first.metadata.name): \(reason)")
             return .failure(.versionIncompatible(
                 module: first.metadata.name,
                 required: systemVersion.stringValue,
@@ -52,32 +52,32 @@ public final class DynamicModuleLoader {
             ))
         case .compatible(let warning):
             if let warning = warning {
-                logger.warning("Version warning for module \(first.metadata.name): \(warning)")
+                logger.warning("版本警告: 模块 \(first.metadata.name): \(warning)")
             } else {
-                logger.info("Version compatible for module \(first.metadata.name)")
+                logger.info("版本兼容: 模块 \(first.metadata.name)")
             }
         }
 
         // Load module
-        logger.info("Loading module \(first.metadata.name) after signature and version checks passed")
+        logger.info("签名和版本检查通过，加载模块 \(first.metadata.name)")
         return loader.load(module: first)
     }
 
     // MARK: - Network Loading (Advanced)
     public func loadFromNetwork(url: URL, completion: @escaping (ModuleLoadResult) -> Void) {
-        logger.info("Downloading module from: \(url)")
+        logger.info("下载模块: \(url)")
 
         let task = URLSession.shared.downloadTask(with: url) { [weak self] tempURL, response, error in
             guard let self = self else { return }
 
             if let error = error {
-                self.logger.error("Download failed: \(error.localizedDescription)")
+                self.logger.error("下载失败: \(error.localizedDescription)")
                 completion(.failure(.loadFailed(name: url.lastPathComponent, reason: error.localizedDescription)))
                 return
             }
 
             guard let tempURL = tempURL else {
-                self.logger.error("Download returned no data")
+                self.logger.error("下载未返回数据")
                 completion(.failure(.loadFailed(name: url.lastPathComponent, reason: "No data downloaded")))
                 return
             }
@@ -100,7 +100,7 @@ public final class DynamicModuleLoader {
                 let result = self.load(from: destination)
                 completion(result)
             } catch {
-                self.logger.error("Failed to process downloaded module: \(error.localizedDescription)")
+                self.logger.error("处理下载模块失败: \(error.localizedDescription)")
                 completion(.failure(.loadFailed(name: moduleName, reason: error.localizedDescription)))
             }
         }
@@ -115,22 +115,22 @@ public final class DynamicModuleLoader {
         let signaturePath = module.bundleURL.appendingPathComponent(".signature")
         
         guard FileManager.default.fileExists(atPath: signaturePath.path) else {
-            logger.warning("Signature file (.signature) missing for module: \(module.metadata.name)")
+            logger.warning("签名文件(.signature)缺失: 模块 \(module.metadata.name)")
             return false
         }
         
         // Verify signature file is not empty and contains valid data
         guard let signatureData = try? Data(contentsOf: signaturePath), !signatureData.isEmpty else {
-            logger.warning("Signature file is empty for module: \(module.metadata.name)")
+            logger.warning("签名文件为空: 模块 \(module.metadata.name)")
             return false
         }
         
         guard let signatureString = String(data: signatureData, encoding: .utf8), !signatureString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            logger.warning("Signature file contains only whitespace for module: \(module.metadata.name)")
+            logger.warning("签名文件仅含空白: 模块 \(module.metadata.name)")
             return false
         }
         
-        logger.info("Signature validated for module: \(module.metadata.name)")
+        logger.info("签名验证通过: 模块 \(module.metadata.name)")
         return true
     }
 
@@ -171,7 +171,7 @@ public enum DynamicModuleLoaderTests {
 
     // MARK: - Run All Tests
     public static func runAllTests() {
-        print("=== DynamicModuleLoader Tests ===")
+        print("=== 功能9测试 ===")
 
         testNormalLoad()
         testSignatureFailure()
@@ -180,12 +180,12 @@ public enum DynamicModuleLoaderTests {
         testMissingBundle()
         testWhitespaceSignature()
 
-        print("\n=== All DynamicModuleLoader Tests Passed ✅ ===")
+        print("\n=== 全部功能9测试通过 ✅ ===")
     }
 
     // MARK: - Test 1: Normal Load (Signature & Version Checks Pass)
     public static func testNormalLoad() {
-        print("\n🧪 Test 1: Normal Load (signature & version checks pass)")
+        print("\n🧪 测试1: 正常加载(签名和版本检查通过)")
 
         let tempDir = createTempTestDirectory()
         defer { cleanupTempDirectory(tempDir) }
@@ -226,20 +226,20 @@ public enum DynamicModuleLoaderTests {
             // Expected: fake bundle cannot really load
             // Reason should not be signature or version
             if reason.contains("Signature") || reason.contains("version") {
-                fatalError("❌ Test 1 failed: Unexpected signature/version failure: \(reason)")
+                fatalError("❌ 测试1失败: 意外的签名/版本失败: \(reason)")
             }
-            print("✅ Test 1 passed: Signature and version checks passed, loader failed for expected reason: \(reason)")
+            print("✅ 测试1通过: 签名和版本检查通过，加载器因预期原因失败: \(reason)")
         case .failure(.versionIncompatible):
-            fatalError("❌ Test 1 failed: Should not fail with version incompatible")
+            fatalError("❌ 测试1失败: 不应因版本不兼容失败")
         default:
             // Success would be unexpected, but main validation is: not rejected by signature/version
-            print("✅ Test 1 passed: Module accepted by signature and version checks")
+            print("✅ 测试1通过: 模块通过签名和版本检查")
         }
     }
 
     // MARK: - Test 2: Signature Validation Failure
     public static func testSignatureFailure() {
-        print("\n🧪 Test 2: Signature Validation Failure")
+        print("\n🧪 测试2: 签名验证失败")
 
         let tempDir = createTempTestDirectory()
         defer { cleanupTempDirectory(tempDir) }
@@ -267,17 +267,17 @@ public enum DynamicModuleLoaderTests {
         switch result {
         case .failure(.loadFailed(let name, let reason)):
             guard name == "UnsignedModule", reason == "Signature validation failed" else {
-                fatalError("❌ Test 2 failed: Expected signature failure for UnsignedModule, got \(name): \(reason)")
+                fatalError("❌ 测试2失败: 期望UnsignedModule签名失败，实际 \(name): \(reason)")
             }
-            print("✅ Test 2 passed: Unsigned module rejected: \(reason)")
+            print("✅ 测试2通过: 未签名模块被拒绝: \(reason)")
         default:
-            fatalError("❌ Test 2 failed: Expected signature validation failure, got \(result)")
+            fatalError("❌ 测试2失败: 期望签名验证失败，实际 \(result)")
         }
     }
 
     // MARK: - Test 3: Version Incompatible
     public static func testVersionIncompatible() {
-        print("\n🧪 Test 3: Version Incompatible")
+        print("\n🧪 测试3: 版本不兼容")
 
         let tempDir = createTempTestDirectory()
         defer { cleanupTempDirectory(tempDir) }
@@ -305,11 +305,11 @@ public enum DynamicModuleLoaderTests {
         switch result {
         case .failure(.versionIncompatible(let module, let required, let actual)):
             guard module == "OldModule" else {
-                fatalError("❌ Test 3 failed: Wrong module name: \(module)")
+                fatalError("❌ 测试3失败: 错误的模块名称: \(module)")
             }
-            print("✅ Test 3 passed: Version incompatible detected for \(module) (required: \(required), actual: \(actual))")
+            print("✅ 测试3通过: 版本不兼容已检测 \(module) (required: \(required), actual: \(actual))")
         default:
-            fatalError("❌ Test 3 failed: Expected versionIncompatible error, got \(result)")
+            fatalError("❌ 测试3失败: 期望versionIncompatible错误，实际 \(result)")
         }
     }
 
@@ -372,7 +372,7 @@ public enum DynamicModuleLoaderTests {
 
     // MARK: - Test 4: Empty Signature File Rejected
     public static func testEmptySignature() {
-        print("\n🧪 Test 4: Empty Signature File Rejected")
+        print("\n🧪 测试4: 空签名文件被拒绝")
 
         let tempDir = createTempTestDirectory()
         defer { cleanupTempDirectory(tempDir) }
@@ -399,15 +399,15 @@ public enum DynamicModuleLoaderTests {
         let result = dynamicLoader.load(from: tempDir)
 
         guard case .failure = result else {
-            fatalError("❌ Test 4 failed: Module with empty signature should fail loading")
+            fatalError("❌ 测试4失败: 空签名模块应加载失败")
         }
 
-        print("✅ Test 4 passed: Module with empty signature correctly rejected")
+        print("✅ 测试4通过: 空签名模块正确被拒绝")
     }
 
     // MARK: - Test 5: Module Missing Bundle
     public static func testMissingBundle() {
-        print("\n🧪 Test 5: Module Missing Bundle")
+        print("\n🧪 测试5: 模块缺少bundle")
 
         let tempDir = createTempTestDirectory()
         defer { cleanupTempDirectory(tempDir) }
@@ -434,15 +434,15 @@ public enum DynamicModuleLoaderTests {
         let result = dynamicLoader.load(from: tempDir)
 
         guard case .failure = result else {
-            fatalError("❌ Test 5 failed: Module without bundle should fail")
+            fatalError("❌ 测试5失败: 缺少bundle的模块应失败")
         }
 
-        print("✅ Test 5 passed: Module missing bundle correctly rejected")
+        print("✅ 测试5通过: 缺少bundle的模块正确被拒绝")
     }
 
     // MARK: - Test 6: Whitespace-Only Signature Rejected
     public static func testWhitespaceSignature() {
-        print("\n🧪 Test 6: Whitespace-Only Signature Rejected")
+        print("\n🧪 测试6: 仅空白签名被拒绝")
 
         let tempDir = createTempTestDirectory()
         defer { cleanupTempDirectory(tempDir) }
@@ -470,9 +470,9 @@ public enum DynamicModuleLoaderTests {
 
         // Verify rejected due to whitespace-only signature
         guard case .failure = result else {
-            fatalError("❌ Test 6 failed: Module with whitespace-only signature should fail")
+            fatalError("❌ 测试6失败: 仅空白签名的模块应失败")
         }
 
-        print("✅ Test 6 passed: Whitespace-only signature rejected")
+        print("✅ 测试6通过: 仅空白签名被拒绝")
     }
 }

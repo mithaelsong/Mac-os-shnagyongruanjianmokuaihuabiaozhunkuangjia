@@ -3,7 +3,7 @@
 // 优先级: P1
 
 import AppKit
-import os.lock
+import os
 
 // MARK: - 视图槽位
 /// 视图槽位枚举
@@ -92,7 +92,7 @@ public final class ViewContainer {
 
         os_unfair_lock_unlock(&lock)
 
-        logger.info("Registered view for slot '\(slot)' module '\(moduleName)' priority \(priority) token \(token)")
+        logger.info("已注册视图: 槽位 '\(slot)' 模块'\(moduleName)' 优先级\(priority) token \(token)")
 
         EventBus.shared.emit(.viewSlotChanged, userInfo: [
             "slot": slot.rawValue,
@@ -132,7 +132,7 @@ public final class ViewContainer {
 
         registration.view.removeFromSuperview()
 
-        logger.info("Unregistered view token \(token)")
+        logger.info("已注销视图 token \(token)")
 
         EventBus.shared.emit(.viewSlotChanged, userInfo: [
             "slot": registration.slot.rawValue,
@@ -168,7 +168,7 @@ public final class ViewContainer {
             reg.view.removeFromSuperview()
         }
 
-        logger.info("Unregistered all views for module '\(moduleName)' (count: \(removedRegistrations.count))")
+        logger.info("已注销模块所有视图 '\(moduleName)' (count: \(removedRegistrations.count))")
 
         EventBus.shared.emit(.viewSlotChanged, userInfo: [
             "moduleName": moduleName,
@@ -322,7 +322,7 @@ public final class ViewContainer {
 
         NSLayoutConstraint.activate(constraints)
 
-        logger.info("Built container hierarchy for slot '\(slot)' with \(views.count) views")
+        logger.info("已构建槽位'\(slot)'的容器层次，共\(views.count)个视图")
 
         return container
     }
@@ -446,7 +446,7 @@ public final class ViewContainer {
 
         NSLayoutConstraint.activate(constraints)
 
-        logger.info("Built container hierarchy for module '\(moduleName)' with \(moduleRegs.count) slots")
+        logger.info("已构建模块容器层次 '\(moduleName)' 共\(moduleRegs.count)个槽位")
 
         return container
     }
@@ -502,7 +502,7 @@ public enum ViewContainerTests {
 
     /// 运行所有测试
     public static func run() {
-        print("=== ViewContainer Tests ===")
+        print("=== 视图容器测试 ===")
         testRegisterReturnsToken()
         testRegisterAndUnregisterToken()
         testPriorityOrdering()
@@ -516,7 +516,7 @@ public enum ViewContainerTests {
         testSlotEntries()
         testThreadSafety()
         testModuleNavigationController()
-        print("\n=== All ViewContainer Tests Passed ✅ ===")
+        print("\n=== 全部视图容器测试通过 ✅ ===")
     }
 
     // MARK: - 测试1: 注册返回 token
@@ -529,11 +529,11 @@ public enum ViewContainerTests {
         let view = NSView()
         let token = vc.register(view: view, slot: .center, moduleName: "TestModule1", priority: 10)
         guard !token.isEmpty else {
-            fatalError("❌ register should return non-empty token")
+            fatalError("❌ 测试1失败: register应返回非空token")
         }
 
         vc.unregisterAll(moduleName: "TestModule1")
-        print("✅ Test 1 passed: register returns valid token")
+        print("✅ 测试1通过: 注册返回有效token")
     }
 
     // MARK: - 测试2: 注册与注销 token
@@ -546,23 +546,23 @@ public enum ViewContainerTests {
         let view = NSView()
         let token = vc.register(view: view, slot: .center, moduleName: "TestModule2")
         guard vc.registration(for: token) != nil else {
-            fatalError("❌ registration(for:) should return non-nil")
+            fatalError("❌ 测试2失败: registration(for:)应为非nil")
         }
 
         let result = vc.unregister(token: token)
         guard result == true else {
-            fatalError("❌ unregister(token:) should return true")
+            fatalError("❌ 测试2失败: unregister(token:)应返回true")
         }
         guard vc.registration(for: token) == nil else {
-            fatalError("❌ registration should be nil after unregister")
+            fatalError("❌ 测试2失败: 注销后registration应为nil")
         }
 
         // 重复注销应返回 false
         guard vc.unregister(token: token) == false else {
-            fatalError("❌ unregister same token twice should return false")
+            fatalError("❌ 测试2失败: 重复注销同一token应返回false")
         }
 
-        print("✅ Test 2 passed: register/unregister by token correct")
+        print("✅ 测试2通过: 注册/注销token正确")
     }
 
     // MARK: - 测试3: 同一槽位多模块 priority 降序
@@ -585,13 +585,13 @@ public enum ViewContainerTests {
         let regs = vc.registrations(for: .center)
         let modules = regs.map(\.moduleName)
         guard modules == ["ModuleB", "ModuleA", "ModuleC"] else {
-            fatalError("❌ Expected priority order [ModuleB, ModuleA, ModuleC], got \(modules)")
+            fatalError("❌ 期望优先级顺序[ModuleB, ModuleA, ModuleC]，实际\(modules)")
         }
 
         vc.unregisterAll(moduleName: "ModuleA")
         vc.unregisterAll(moduleName: "ModuleB")
         vc.unregisterAll(moduleName: "ModuleC")
-        print("✅ Test 3 passed: priority descending order correct")
+        print("✅ 测试3通过: 优先级降序正确")
     }
 
     // MARK: - 测试4: view(for:) 返回最高优先级视图
@@ -609,16 +609,16 @@ public enum ViewContainerTests {
         _ = vc.register(view: highView, slot: .top, moduleName: "HighModule", priority: 99)
 
         guard vc.view(for: .top) === highView else {
-            fatalError("❌ view(for:) should return highest priority view")
+            fatalError("❌ 测试4失败: view(for:)应返回最高优先级视图")
         }
 
         vc.unregisterAll(moduleName: "HighModule")
         guard vc.view(for: .top) === lowView else {
-            fatalError("❌ after unregistering high priority, view(for:) should return low priority view")
+            fatalError("❌ view(for:)失败: 移除高优先级后应返回低优先级视图")
         }
 
         vc.unregisterAll(moduleName: "LowModule")
-        print("✅ Test 4 passed: view(for:) returns highest priority")
+        print("✅ 测试4通过: view(for:)返回最高优先级")
     }
 
     // MARK: - 测试5: 按模块名注销全部并返回数量
@@ -633,28 +633,28 @@ public enum ViewContainerTests {
         _ = vc.register(view: NSView(), slot: .center, moduleName: "MultiSlotModule")
 
         guard vc.slots(for: "MultiSlotModule").count == 3 else {
-            fatalError("❌ Expected 3 registered slots")
+            fatalError("❌ 期望3个已注册槽位")
         }
 
         let count = vc.unregisterAll(moduleName: "MultiSlotModule")
         guard count == 3 else {
-            fatalError("❌ unregisterAll should return 3, got \(count)")
+            fatalError("❌ 批量注销失败: 期望返回3，实际\(count)")
         }
 
         guard vc.slots(for: "MultiSlotModule").isEmpty else {
-            fatalError("❌ slots should be empty after unregisterAll")
+            fatalError("❌ unregisterAll后槽位应为空")
         }
         guard !vc.isRegistered(.top) else {
-            fatalError("❌ top should not be registered after unregisterAll")
+            fatalError("❌ unregisterAll后top不应被注册")
         }
 
         // 重复注销应返回 0
         let secondCount = vc.unregisterAll(moduleName: "MultiSlotModule")
         guard secondCount == 0 else {
-            fatalError("❌ second unregisterAll should return 0, got \(secondCount)")
+            fatalError("❌ 测试失败: 第二次unregisterAll应返回0，实际\(secondCount)")
         }
 
-        print("✅ Test 5 passed: unregisterAll(moduleName:) returns Int correct")
+        print("✅ 测试5通过: unregisterAll返回正确数量")
     }
 
     // MARK: - 测试6: 查询方法
@@ -670,39 +670,39 @@ public enum ViewContainerTests {
         let token2 = vc.register(view: view2, slot: .bottom, moduleName: "QueryModule", priority: 1)
 
         guard vc.isRegistered(.center) else {
-            fatalError("❌ isRegistered(.center) should be true")
+            fatalError("❌ 查询失败: isRegistered(.center)应为true")
         }
         guard vc.isModuleRegistered("QueryModule", for: .center) else {
-            fatalError("❌ isModuleRegistered should be true")
+            fatalError("❌ isModuleRegistered应为true")
         }
         guard vc.registeredSlots().contains(.center) else {
-            fatalError("❌ registeredSlots should contain .center")
+            fatalError("❌ registeredSlots应包含.center")
         }
         guard vc.modules(for: .center).contains("QueryModule") else {
-            fatalError("❌ modules(for:) should contain QueryModule")
+            fatalError("❌ 查询失败: modules(for:)应包含QueryModule")
         }
         guard vc.slots(for: "QueryModule").contains(.center) else {
-            fatalError("❌ slots(for:) should contain .center")
+            fatalError("❌ 查询失败: slots(for:)应包含.center")
         }
         guard vc.views(for: .center).count == 1 else {
-            fatalError("❌ views(for:) should return 1 view")
+            fatalError("❌ 查询失败: views(for:)应返回1个视图")
         }
 
         if let reg = vc.registration(for: token1) {
             guard reg.slot == .center && reg.priority == 2 && reg.moduleName == "QueryModule" else {
-                fatalError("❌ registration(for:) info mismatch")
+                fatalError("❌ 查询失败: registration(for:)信息不匹配")
             }
         } else {
-            fatalError("❌ registration(for:) should return non-nil")
+            fatalError("❌ 测试2失败: registration(for:)应为非nil")
         }
 
         vc.unregister(token: token2)
         guard !vc.isRegistered(.bottom) else {
-            fatalError("❌ bottom should not be registered after unregister")
+            fatalError("❌ 注销后bottom不应被注册")
         }
 
         vc.unregister(token: token1)
-        print("✅ Test 6 passed: all query methods correct")
+        print("✅ 测试6通过: 所有查询方法正确")
     }
 
     // MARK: - 测试7: 构建模块容器层级
@@ -725,27 +725,27 @@ public enum ViewContainerTests {
         _ = vc.register(view: bottomView, slot: .bottom, moduleName: "LayoutModule")
 
         guard let container = vc.buildContainerHierarchy(for: "LayoutModule") else {
-            fatalError("❌ buildContainerHierarchy should return non-nil")
+            fatalError("❌ buildContainerHierarchy应返回非nil")
         }
 
         let subviews = container.subviews
         guard subviews.contains(topView) else {
-            fatalError("❌ topView should be in container")
+            fatalError("❌ topView应在容器中")
         }
         guard subviews.contains(leftView) else {
-            fatalError("❌ leftView should be in container")
+            fatalError("❌ leftView应在容器中")
         }
         guard subviews.contains(centerView) else {
-            fatalError("❌ centerView should be in container")
+            fatalError("❌ centerView应在容器中")
         }
         guard subviews.contains(rightView) else {
-            fatalError("❌ rightView should be in container")
+            fatalError("❌ rightView应在容器中")
         }
         guard subviews.contains(bottomView) else {
-            fatalError("❌ bottomView should be in container")
+            fatalError("❌ bottomView应在容器中")
         }
         guard !container.constraints.isEmpty else {
-            fatalError("❌ container should have constraints")
+            fatalError("❌ 容器应有约束")
         }
 
         // 测试部分布局（缺少 center）
@@ -754,14 +754,14 @@ public enum ViewContainerTests {
         _ = vc.register(view: leftView,   slot: .left,   moduleName: "LayoutModule")
 
         guard let partialContainer = vc.buildContainerHierarchy(for: "LayoutModule") else {
-            fatalError("❌ partial buildContainerHierarchy should return non-nil")
+            fatalError("❌ 部分构建buildContainerHierarchy应返回非nil")
         }
         guard partialContainer.subviews.count == 2 else {
-            fatalError("❌ partial container should have 2 subviews")
+            fatalError("❌ 部分容器应有2个子视图")
         }
 
         vc.unregisterAll(moduleName: "LayoutModule")
-        print("✅ Test 7 passed: buildContainerHierarchy correct")
+        print("✅ 测试7通过: buildContainerHierarchy正确")
     }
 
     // MARK: - 测试8: 构建模块容器层级返回 nil
@@ -772,10 +772,10 @@ public enum ViewContainerTests {
         vc.unregisterAll(moduleName: "NonExistentModule")
 
         guard vc.buildContainerHierarchy(for: "NonExistentModule") == nil else {
-            fatalError("❌ buildContainerHierarchy for unknown module should return nil")
+            fatalError("❌ 未知模块buildContainerHierarchy应返回nil")
         }
 
-        print("✅ Test 8 passed: buildContainerHierarchy returns nil correctly")
+        print("✅ 测试8通过: buildContainerHierarchy正确返回nil")
     }
 
     // MARK: - 测试9: 构建单槽位容器层级
@@ -793,33 +793,33 @@ public enum ViewContainerTests {
         _ = vc.register(view: viewB, slot: .center, moduleName: "SlotModuleB", priority: 10)
 
         guard let container = vc.buildContainerHierarchy(for: .center) else {
-            fatalError("❌ buildContainerHierarchy(for: .center) should return non-nil")
+            fatalError("❌ 构建失败: buildContainerHierarchy(for:.center)应返回非nil")
         }
 
         guard container.subviews.contains(viewA) && container.subviews.contains(viewB) else {
-            fatalError("❌ container should contain both views")
+            fatalError("❌ 容器应包含两个视图")
         }
 
         // viewB has higher priority, should be first subview (top)
         guard container.subviews.first === viewB else {
-            fatalError("❌ higher priority view should be first subview")
+            fatalError("❌ 高优先级视图应为第一个子视图")
         }
         guard container.subviews.last === viewA else {
-            fatalError("❌ lower priority view should be last subview")
+            fatalError("❌ 低优先级视图应为最后一个子视图")
         }
 
         guard !container.constraints.isEmpty else {
-            fatalError("❌ container should have constraints")
+            fatalError("❌ 容器应有约束")
         }
 
         // 空槽位应返回 nil
         guard vc.buildContainerHierarchy(for: .right) == nil else {
-            fatalError("❌ buildContainerHierarchy for empty slot should return nil")
+            fatalError("❌ 空槽位buildContainerHierarchy应返回nil")
         }
 
         vc.unregisterAll(moduleName: "SlotModuleA")
         vc.unregisterAll(moduleName: "SlotModuleB")
-        print("✅ Test 9 passed: buildContainerHierarchy for single slot correct")
+        print("✅ 测试9通过: 单槽位构建容器正确")
     }
 
     // MARK: - 测试10: 多模块同槽位
@@ -841,39 +841,39 @@ public enum ViewContainerTests {
 
         let entries = vc.entries(for: .left)
         guard entries.count == 3 else {
-            fatalError("❌ entries count should be 3, got \(entries.count)")
+            fatalError("❌ 测试失败: 条目数应为3，实际\(entries.count)")
         }
 
         // 验证 priority 降序
         guard entries[0].priority == 12 && entries[0].moduleName == "SameSlotB" else {
-            fatalError("❌ first entry should be SameSlotB priority 12")
+            fatalError("❌ 第一个条目应为SameSlotB优先级12")
         }
         guard entries[1].priority == 7 && entries[1].moduleName == "SameSlotA" else {
-            fatalError("❌ second entry should be SameSlotA priority 7")
+            fatalError("❌ 第二个条目应为SameSlotA优先级7")
         }
         guard entries[2].priority == 3 && entries[2].moduleName == "SameSlotC" else {
-            fatalError("❌ third entry should be SameSlotC priority 3")
+            fatalError("❌ 第三个条目应为SameSlotC优先级3")
         }
 
         // views(for:) 也应按 priority 降序
         let views = vc.views(for: .left)
         guard views[0] === viewB && views[1] === viewA && views[2] === viewC else {
-            fatalError("❌ views order mismatch")
+            fatalError("❌ 视图顺序不匹配")
         }
 
         // 注销其中一个，其余保留
         vc.unregister(token: tokenB)
         let remaining = vc.entries(for: .left)
         guard remaining.count == 2 else {
-            fatalError("❌ remaining count should be 2, got \(remaining.count)")
+            fatalError("❌ 测试失败: 剩余条目应为2，实际\(remaining.count)")
         }
         guard remaining.map(\.moduleName) == ["SameSlotA", "SameSlotC"] else {
-            fatalError("❌ remaining modules order incorrect")
+            fatalError("❌ 剩余模块顺序不正确")
         }
 
         vc.unregister(token: tokenA)
         vc.unregister(token: tokenC)
-        print("✅ Test 10 passed: multiple modules same slot correct")
+        print("✅ 测试10通过: 多模块同槽位正确")
     }
 
     // MARK: - 测试11: SlotEntry 查询
@@ -888,26 +888,26 @@ public enum ViewContainerTests {
 
         let entries = vc.entries(for: .right)
         guard entries.count == 1 else {
-            fatalError("❌ entries count should be 1")
+            fatalError("❌ 条目数应为1")
         }
         guard entries[0].moduleName == "EntryModule" else {
-            fatalError("❌ SlotEntry moduleName mismatch")
+            fatalError("❌ SlotEntry模块名不匹配")
         }
         guard entries[0].priority == 7 else {
-            fatalError("❌ SlotEntry priority mismatch")
+            fatalError("❌ SlotEntry优先级不匹配")
         }
         guard entries[0].view === view else {
-            fatalError("❌ SlotEntry view identity mismatch")
+            fatalError("❌ SlotEntry视图标识不匹配")
         }
 
         // 空槽位返回空数组
         let emptyEntries = vc.entries(for: .bottom)
         guard emptyEntries.isEmpty else {
-            fatalError("❌ empty slot entries should be empty")
+            fatalError("❌ 空槽位条目应为空")
         }
 
         vc.unregisterAll(moduleName: "EntryModule")
-        print("✅ Test 11 passed: SlotEntry query correct")
+        print("✅ 测试11通过: SlotEntry查询正确")
     }
 
     // MARK: - 测试12: 线程安全
@@ -943,7 +943,7 @@ public enum ViewContainerTests {
         let centerCount = vc.registrations(for: .center).count
         let topCount = vc.registrations(for: .top).count
         guard centerCount + topCount == count else {
-            fatalError("❌ Expected \(count) registrations, got center:\(centerCount) top:\(topCount)")
+            fatalError("❌ 线程安全失败: 期望\(count)个注册，实际center:\(centerCount) top:\(topCount)")
         }
 
         // 并发注销一半
@@ -959,18 +959,18 @@ public enum ViewContainerTests {
 
         let remaining = vc.registrations(for: .center).count + vc.registrations(for: .top).count
         guard remaining == count / 2 else {
-            fatalError("❌ Expected \(count / 2) remaining, got \(remaining)")
+            fatalError("❌ 线程安全失败: 期望\(count / 2)个剩余，实际\(remaining)")
         }
 
         let removedCount = vc.unregisterAll(moduleName: "ThreadModule")
         guard removedCount == count / 2 else {
-            fatalError("❌ Expected unregisterAll to return \(count / 2), got \(removedCount)")
+            fatalError("❌ 线程安全失败: 期望unregisterAll返回\(count / 2)，实际\(removedCount)")
         }
         guard vc.slots(for: "ThreadModule").isEmpty else {
-            fatalError("❌ Expected 0 slots after unregisterAll")
+            fatalError("❌ unregisterAll后期望0个槽位")
         }
 
-        print("✅ Test 12 passed: thread safety correct")
+        print("✅ 测试12通过: 线程安全正确")
     }
 
     // MARK: - 测试13: ModuleNavigationController
@@ -981,7 +981,7 @@ public enum ViewContainerTests {
         nav.reset()
 
         guard nav.currentModuleName == nil else {
-            fatalError("❌ currentModuleName should be nil initially")
+            fatalError("❌ currentModuleName初始应为nil")
         }
 
         let vc = ViewContainer.shared
@@ -990,15 +990,15 @@ public enum ViewContainerTests {
 
         nav.navigate(to: "NavModule")
         guard nav.currentModuleName == "NavModule" else {
-            fatalError("❌ currentModuleName should be NavModule after navigate")
+            fatalError("❌ 导航后currentModuleName应为NavModule")
         }
 
         nav.reset()
         guard nav.currentModuleName == nil else {
-            fatalError("❌ currentModuleName should be nil after reset")
+            fatalError("❌ 重置后currentModuleName应为nil")
         }
 
         vc.unregisterAll(moduleName: "NavModule")
-        print("✅ Test 13 passed: ModuleNavigationController correct")
+        print("✅ 测试13通过: 模块导航控制器正确")
     }
 }

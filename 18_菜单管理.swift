@@ -3,7 +3,7 @@
 // 优先级: P2
 
 import AppKit
-import os.lock
+import os
 
 // MARK: - 菜单管理器
 /// 菜单管理器 (功能18)
@@ -37,7 +37,7 @@ public final class MenuManager {
     ///   - title: 菜单标题
     public func registerModuleMenu(_ menu: NSMenu, for module: String, title: String) {
         guard !module.isEmpty else {
-            logger.warning("registerModuleMenu failed: module name is empty")
+            logger.warning("registerModuleMenu失败: 模块名为空")
             return
         }
 
@@ -55,7 +55,7 @@ public final class MenuManager {
 
         mainMenu.addItem(menuItem)
 
-        logger.info("Registered menu '\(title)' for module: \(module)")
+        logger.info("已注册菜单 '\(title)' 模块: \(module)")
     }
 
     // MARK: - 移除模块菜单
@@ -69,7 +69,7 @@ public final class MenuManager {
 
         if let item = menuItem {
             mainMenu.removeItem(item)
-            logger.info("Unregistered menu for module: \(module)")
+            logger.info("已注销模块菜单: \(module)")
         }
     }
 
@@ -84,7 +84,7 @@ public final class MenuManager {
             mainMenu.removeItem(item)
         }
 
-        logger.info("Unregistered all module menus (count: \(items.count))")
+        logger.info("已注销所有模块菜单 (数量: \(items.count))")
     }
 
     // MARK: - 菜单项操作
@@ -99,7 +99,7 @@ public final class MenuManager {
         os_unfair_lock_unlock(&lock)
 
         guard let submenu = moduleItem?.submenu else {
-            logger.warning("addMenuItem failed: no menu registered for module '\(module)'")
+            logger.warning("addMenuItem失败: 模块未注册菜单 '\(module)'")
             return
         }
 
@@ -116,7 +116,7 @@ public final class MenuManager {
         os_unfair_lock_unlock(&lock)
 
         guard let submenu = moduleItem?.submenu else {
-            logger.warning("removeMenuItem failed: no menu registered for module '\(module)'")
+            logger.warning("removeMenuItem失败: 模块未注册菜单 '\(module)'")
             return
         }
 
@@ -186,19 +186,19 @@ public enum MenuManagerTests {
 
     /// 运行所有测试
     public static func run() {
-        print("=== MenuManager Tests ===")
+        print("=== 菜单管理器测试 ===")
         testRegisterAndUnregister()
         testUnregisterAll()
         testAddAndRemoveMenuItem()
         testMenuItemsQuery()
         testCreateMenuItem()
         testEmptyModuleName()
-        print("\n=== All MenuManager Tests Passed ✅ ===")
+        print("\n=== 全部菜单管理器测试通过 ✅ ===")
     }
 
     // MARK: - 测试1: 注册/注销
     static func testRegisterAndUnregister() {
-        print("\n🧪 Test 1: Register & Unregister")
+        print("\n🧪 测试1: 注册与注销")
 
         let mainMenu = NSMenu()
         let mm = MenuManager(mainMenu: mainMenu)
@@ -207,21 +207,21 @@ public enum MenuManagerTests {
         mm.registerModuleMenu(menu, for: "TestModule", title: "Test")
 
         guard mm.hasMenu(for: "TestModule") else {
-            fatalError("❌ hasMenu should be true after register")
+            fatalError("❌ 注册失败: hasMenu注册后应为true")
         }
         guard mm.registeredModules().contains("TestModule") else {
-            fatalError("❌ registeredModules should contain TestModule")
+            fatalError("❌ 注册失败: registeredModules应包含TestModule")
         }
         guard mainMenu.items.count == 1 else {
-            fatalError("❌ mainMenu should have 1 item, got \(mainMenu.items.count)")
+            fatalError("❌ 注册失败: mainMenu应有1个菜单项，实际\(mainMenu.items.count)")
         }
 
         mm.unregisterModuleMenu(for: "TestModule")
         guard !mm.hasMenu(for: "TestModule") else {
-            fatalError("❌ hasMenu should be false after unregister")
+            fatalError("❌ 注销失败: hasMenu注销后应为false")
         }
         guard mainMenu.items.isEmpty else {
-            fatalError("❌ mainMenu should be empty after unregister")
+            fatalError("❌ 注销失败: mainMenu注销后应为空")
         }
 
         // 重复注销不应崩溃
@@ -232,7 +232,7 @@ public enum MenuManagerTests {
 
     // MARK: - 测试2: 注销全部
     static func testUnregisterAll() {
-        print("\n🧪 Test 2: Unregister All")
+        print("\n🧪 测试2: 注销所有")
 
         let mainMenu = NSMenu()
         let mm = MenuManager(mainMenu: mainMenu)
@@ -241,16 +241,16 @@ public enum MenuManagerTests {
         mm.registerModuleMenu(NSMenu(title: "B"), for: "ModuleB", title: "B")
 
         guard mainMenu.items.count == 2 else {
-            fatalError("❌ mainMenu should have 2 items")
+            fatalError("❌ 注册失败: mainMenu应有2个菜单项")
         }
 
         mm.unregisterAllModuleMenus()
 
         guard mm.registeredModules().isEmpty else {
-            fatalError("❌ registeredModules should be empty after unregisterAll")
+            fatalError("❌ 注销失败: unregisterAll后registeredModules应为空")
         }
         guard mainMenu.items.isEmpty else {
-            fatalError("❌ mainMenu should be empty after unregisterAll")
+            fatalError("❌ 注销失败: mainMenu注销后应为空All")
         }
 
         print("✅ Test 2 passed: unregisterAll correct")
@@ -258,7 +258,7 @@ public enum MenuManagerTests {
 
     // MARK: - 测试3: 添加/移除菜单项
     static func testAddAndRemoveMenuItem() {
-        print("\n🧪 Test 3: Add & Remove Menu Item")
+        print("\n🧪 测试3: 添加与移除菜单项")
 
         let mainMenu = NSMenu()
         let mm = MenuManager(mainMenu: mainMenu)
@@ -271,15 +271,15 @@ public enum MenuManagerTests {
 
         let items = mm.menuItems(for: "TestModule")
         guard items.count == 1 else {
-            fatalError("❌ Expected 1 menu item, got \(items.count)")
+            fatalError("❌ 查询失败: 期望1个菜单项，实际\(items.count)")
         }
         guard items.first?.title == "Action" else {
-            fatalError("❌ Menu item title mismatch")
+            fatalError("❌ 测试失败: 菜单项标题不匹配")
         }
 
         mm.removeMenuItem(item, from: "TestModule")
         guard mm.menuItems(for: "TestModule").isEmpty else {
-            fatalError("❌ Menu items should be empty after remove")
+            fatalError("❌ 移除失败: 移除后菜单项应为空")
         }
 
         // 向未注册模块添加项不应崩溃
@@ -290,16 +290,16 @@ public enum MenuManagerTests {
 
     // MARK: - 测试4: 菜单项查询
     static func testMenuItemsQuery() {
-        print("\n🧪 Test 4: Menu Items Query")
+        print("\n🧪 测试4: 菜单项查询")
 
         let mainMenu = NSMenu()
         let mm = MenuManager(mainMenu: mainMenu)
 
         guard mm.menuItems(for: "Ghost").isEmpty else {
-            fatalError("❌ menuItems for unregistered module should be empty")
+            fatalError("❌ 查询失败: 未注册模块的菜单项应为空")
         }
         guard !mm.hasMenu(for: "Ghost") else {
-            fatalError("❌ hasMenu for unregistered module should be false")
+            fatalError("❌ 查询失败: 未注册模块的hasMenu应为false")
         }
 
         let menu = NSMenu(title: "QueryTest")
@@ -312,7 +312,7 @@ public enum MenuManagerTests {
 
         let items = mm.menuItems(for: "QueryModule")
         guard items.count == 2 else {
-            fatalError("❌ Expected 2 items, got \(items.count)")
+            fatalError("❌ 查询失败: 期望2个菜单项，实际\(items.count)")
         }
 
         print("✅ Test 4 passed: menu items query correct")
@@ -320,19 +320,19 @@ public enum MenuManagerTests {
 
     // MARK: - 测试5: 创建菜单项
     static func testCreateMenuItem() {
-        print("\n🧪 Test 5: Create Menu Item")
+        print("\n🧪 测试5: 创建菜单项")
 
         let mm = MenuManager(mainMenu: NSMenu())
 
         let item = mm.createMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), key: "q", target: NSApp)
         guard item.title == "Quit" else {
-            fatalError("❌ Title mismatch")
+            fatalError("❌ 测试失败: 标题不匹配")
         }
         guard item.keyEquivalent == "q" else {
-            fatalError("❌ Key equivalent mismatch")
+            fatalError("❌ 测试失败: 快捷键不匹配")
         }
         guard item.target === NSApp else {
-            fatalError("❌ Target mismatch")
+            fatalError("❌ 测试失败: 目标不匹配")
         }
 
         print("✅ Test 5 passed: create menu item correct")
@@ -340,7 +340,7 @@ public enum MenuManagerTests {
 
     // MARK: - 测试6: 空模块名
     static func testEmptyModuleName() {
-        print("\n🧪 Test 6: Empty Module Name")
+        print("\n🧪 测试6: 空模块名")
 
         let mainMenu = NSMenu()
         let mm = MenuManager(mainMenu: mainMenu)
@@ -350,10 +350,10 @@ public enum MenuManagerTests {
         let countAfter = mm.registeredModules().count
 
         guard countBefore == countAfter else {
-            fatalError("❌ Registering empty module name should not add menu")
+            fatalError("❌ 边界失败: 空模块名不应添加菜单")
         }
         guard mainMenu.items.isEmpty else {
-            fatalError("❌ mainMenu should remain empty")
+            fatalError("❌ 边界失败: mainMenu应保持为空")
         }
 
         print("✅ Test 6 passed: empty module name handled correctly")

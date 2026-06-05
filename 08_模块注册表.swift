@@ -1,4 +1,4 @@
-// Function 8: Module Registry
+// 功能8: 模块注册表
 // Description: Track loaded modules (name → instance)
 // Priority: P0
 
@@ -68,7 +68,7 @@ public final class ModuleRegistry: Sendable {
         }
         os_unfair_lock_unlock(&storage.lock)
         
-        logger.info("Registered module: \(name)")
+        logger.info("已注册模块: \(name)")
     }
     
     // MARK: - Unregister
@@ -80,7 +80,7 @@ public final class ModuleRegistry: Sendable {
         storage.metadataMap.removeValue(forKey: name)
         os_unfair_lock_unlock(&storage.lock)
         
-        logger.info("Unregistered module: \(name)")
+        logger.info("已注销模块: \(name)")
     }
     
     // MARK: - Get Module
@@ -176,7 +176,7 @@ public enum ModuleRegistryTests {
     
     /// Run all tests
     public static func run() {
-        print("=== ModuleRegistry Tests ===")
+        print("=== 功能8测试 ===")
         testRegister()
         testIsLoaded()
         testGetModule()
@@ -186,7 +186,7 @@ public enum ModuleRegistryTests {
         testUnregister()
         testStats()
         testThreadSafety()
-        print("\n=== All ModuleRegistry Tests Passed ✅ ===")
+        print("\n=== 全部功能8测试通过 ✅ ===")
         
         cleanup()
     }
@@ -199,7 +199,7 @@ public enum ModuleRegistryTests {
     
     /// Test 1: Register modules
     public static func testRegister() {
-        print("\n🧪 Test 1: Register Modules")
+        print("\n🧪 测试1: 注册模块")
         
         let metaA = ModuleMetadata(name: "RegA", version: "1.0", description: "", entryClass: "", priority: 10)
         ModuleRegistry.shared.register(module: TestModuleA(), name: "RegA", metadata: metaA)
@@ -210,13 +210,13 @@ public enum ModuleRegistryTests {
         ModuleRegistry.shared.register(module: TestModuleC(), name: "RegC")
         
         guard ModuleRegistry.shared.isLoaded(name: "RegA") else {
-            fatalError("❌ Test 1 failed: RegA not loaded")
+            fatalError("❌ 测试1失败: RegA未加载")
         }
         guard ModuleRegistry.shared.isLoaded(name: "RegB") else {
-            fatalError("❌ Test 1 failed: RegB not loaded")
+            fatalError("❌ 测试1失败: RegB未加载")
         }
         guard ModuleRegistry.shared.isLoaded(name: "RegC") else {
-            fatalError("❌ Test 1 failed: RegC not loaded")
+            fatalError("❌ 测试1失败: RegC未加载")
         }
         
         // Cleanup
@@ -224,86 +224,86 @@ public enum ModuleRegistryTests {
         ModuleRegistry.shared.unregister(name: "RegB")
         ModuleRegistry.shared.unregister(name: "RegC")
         
-        print("✅ Test 1 passed: 3 modules registered successfully")
+        print("✅ 测试1通过: 3个模块注册成功")
     }
     
     /// Test 2: isLoaded checks
     public static func testIsLoaded() {
-        print("\n🧪 Test 2: isLoaded Checks")
+        print("\n🧪 测试2: isLoaded检查")
         
         let meta = ModuleMetadata(name: "LoadCheck", version: "1.0", description: "", entryClass: "", priority: 10)
         ModuleRegistry.shared.register(module: TestModuleA(), name: "LoadCheck", metadata: meta)
         
         guard ModuleRegistry.shared.isLoaded(name: "LoadCheck") else {
-            fatalError("❌ Test 2 failed: LoadCheck should be loaded")
+            fatalError("❌ 测试2失败: LoadCheck应已加载")
         }
         guard !ModuleRegistry.shared.isLoaded(name: "NonExistent") else {
-            fatalError("❌ Test 2 failed: NonExistent should not be loaded")
+            fatalError("❌ 测试2失败: NonExistent不应已加载")
         }
         
         ModuleRegistry.shared.unregister(name: "LoadCheck")
         
-        print("✅ Test 2 passed: isLoaded works for existing and missing modules")
+        print("✅ 测试2通过: isLoaded对存在和缺失的模块均有效")
     }
     
     /// Test 3: getModule retrieval
     public static func testGetModule() {
-        print("\n🧪 Test 3: getModule Retrieval")
+        print("\n🧪 测试3: getModule获取")
         
         let meta = ModuleMetadata(name: "GetMod", version: "1.0", description: "", entryClass: "", priority: 10)
         ModuleRegistry.shared.register(module: TestModuleA(), name: "GetMod", metadata: meta)
         
         guard let mod = ModuleRegistry.shared.getModule(named: "GetMod") as? TestModuleA else {
-            fatalError("❌ Test 3 failed: GetMod not found or wrong type")
+            fatalError("❌ 测试3失败: GetMod未找到或类型错误")
         }
         guard mod.greet() == "Hello from ModuleA" else {
-            fatalError("❌ Test 3 failed: GetMod greet mismatch")
+            fatalError("❌ 测试3失败: GetMod greet不匹配")
         }
         
         guard ModuleRegistry.shared.getModule(named: "NonExistent") == nil else {
-            fatalError("❌ Test 3 failed: NonExistent should be nil")
+            fatalError("❌ 测试3失败: NonExistent应为nil")
         }
         
         ModuleRegistry.shared.unregister(name: "GetMod")
         
-        print("✅ Test 3 passed: getModule retrieves correct module")
+        print("✅ 测试3通过: getModule获取正确模块")
     }
     
     /// Test 4: getMetadata retrieval
     public static func testGetMetadata() {
-        print("\n🧪 Test 4: getMetadata Retrieval")
+        print("\n🧪 测试4: getMetadata获取")
         
         let meta = ModuleMetadata(name: "MetaMod", version: "2.5.0", description: "Test", entryClass: "", priority: 50)
         ModuleRegistry.shared.register(module: TestModuleA(), name: "MetaMod", metadata: meta)
         
         guard let retrieved = ModuleRegistry.shared.getMetadata(named: "MetaMod") else {
-            fatalError("❌ Test 4 failed: metadata not found")
+            fatalError("❌ 测试4失败: metadata未找到")
         }
         guard retrieved.name == "MetaMod" else {
-            fatalError("❌ Test 4 failed: name mismatch")
+            fatalError("❌ 测试4失败: 名称不匹配")
         }
         guard retrieved.version == "2.5.0" else {
-            fatalError("❌ Test 4 failed: version mismatch, got \(retrieved.version)")
+            fatalError("❌ 测试4失败: 版本不匹配，实际 \(retrieved.version)")
         }
         guard retrieved.priority == 50 else {
-            fatalError("❌ Test 4 failed: priority mismatch, got \(retrieved.priority)")
+            fatalError("❌ 测试4失败: priority不匹配，实际 \(retrieved.priority)")
         }
         
         // Modules without metadata should return nil
         ModuleRegistry.shared.register(module: TestModuleC(), name: "NoMeta")
         guard ModuleRegistry.shared.getMetadata(named: "NoMeta") == nil else {
-            fatalError("❌ Test 4 failed: NoMeta should have no metadata")
+            fatalError("❌ 测试4失败: NoMeta应无metadata")
         }
         
         ModuleRegistry.shared.unregister(name: "MetaMod")
         ModuleRegistry.shared.unregister(name: "NoMeta")
         
-        print("✅ Test 4 passed: getMetadata retrieves correct metadata")
+        print("✅ 测试4通过: getMetadata获取正确的metadata")
     }
     
     /// Test 5: allModuleNames
     public static func testAllModuleNames() {
-        print("\n🧪 Test 5: allModuleNames")
+        print("\n🧪 测试5: allModuleNames")
         
         ModuleRegistry.shared.register(module: TestModuleA(), name: "Alpha")
         ModuleRegistry.shared.register(module: TestModuleB(), name: "Beta")
@@ -311,19 +311,19 @@ public enum ModuleRegistryTests {
         
         let names = ModuleRegistry.shared.allModuleNames.sorted()
         guard names == ["Alpha", "Beta", "Gamma"] else {
-            fatalError("❌ Test 5 failed: expected [Alpha, Beta, Gamma], got \(names)")
+            fatalError("❌ 测试5失败: 期望[Alpha, Beta, Gamma]，实际 \(names)")
         }
         
         ModuleRegistry.shared.unregister(name: "Alpha")
         ModuleRegistry.shared.unregister(name: "Beta")
         ModuleRegistry.shared.unregister(name: "Gamma")
         
-        print("✅ Test 5 passed: allModuleNames returns correct list")
+        print("✅ 测试5通过: allModuleNames返回正确列表")
     }
     
     /// Test 6: getModules conforming to protocol
     public static func testGetModulesConformingTo() {
-        print("\n🧪 Test 6: getModules(conformingTo:)")
+        print("\n🧪 测试6: getModules(conformingTo:)")
         
         ModuleRegistry.shared.register(module: TestModuleA(), name: "ProtoA")
         ModuleRegistry.shared.register(module: TestModuleB(), name: "ProtoB")
@@ -331,24 +331,24 @@ public enum ModuleRegistryTests {
         
         let conforming = ModuleRegistry.shared.getModules(conformingTo: ModuleRegistryTestProtocol.self)
         guard conforming.count == 2 else {
-            fatalError("❌ Test 6 failed: expected 2 protocol modules, got \(conforming.count)")
+            fatalError("❌ 测试6失败: 期望2个协议模块，实际 \(conforming.count)")
         }
         
         let protoNames = conforming.map(\.name).sorted()
         guard protoNames == ["ProtoA", "ProtoB"] else {
-            fatalError("❌ Test 6 failed: expected [ProtoA, ProtoB], got \(protoNames)")
+            fatalError("❌ 测试6失败: 期望[ProtoA, ProtoB]，实际 \(protoNames)")
         }
         
         ModuleRegistry.shared.unregister(name: "ProtoA")
         ModuleRegistry.shared.unregister(name: "ProtoB")
         ModuleRegistry.shared.unregister(name: "NonProto")
         
-        print("✅ Test 6 passed: getModules filters by protocol correctly")
+        print("✅ 测试6通过: getModules按协议正确过滤")
     }
     
     /// Test 7: Unregister module
     public static func testUnregister() {
-        print("\n🧪 Test 7: Unregister Module")
+        print("\n🧪 测试7: 注销模块")
         
         let meta = ModuleMetadata(name: "UnregMod", version: "1.0", description: "", entryClass: "", priority: 10)
         ModuleRegistry.shared.register(module: TestModuleA(), name: "UnregMod", metadata: meta)
@@ -356,18 +356,18 @@ public enum ModuleRegistryTests {
         ModuleRegistry.shared.unregister(name: "UnregMod")
         
         guard !ModuleRegistry.shared.isLoaded(name: "UnregMod") else {
-            fatalError("❌ Test 7 failed: module still loaded after unregister")
+            fatalError("❌ 测试7失败: 注销后模块仍加载")
         }
         guard ModuleRegistry.shared.getMetadata(named: "UnregMod") == nil else {
-            fatalError("❌ Test 7 failed: metadata not removed after unregister")
+            fatalError("❌ 测试7失败: 注销后metadata未移除")
         }
         
-        print("✅ Test 7 passed: module and metadata removed on unregister")
+        print("✅ 测试7通过: 注销时模块和metadata已移除")
     }
     
     /// Test 8: Stats
     public static func testStats() {
-        print("\n🧪 Test 8: ModuleRegistry Stats")
+        print("\n🧪 测试8: ModuleRegistry统计")
         
         ModuleRegistry.shared.register(module: TestModuleA(), name: "StatA")
         ModuleRegistry.shared.register(module: TestModuleB(), name: "StatB")
@@ -375,23 +375,23 @@ public enum ModuleRegistryTests {
         
         let stats = ModuleRegistry.shared.stats
         guard stats.totalModules == 3 else {
-            fatalError("❌ Test 8 failed: expected 3 total modules, got \(stats.totalModules)")
+            fatalError("❌ 测试8失败: 期望3个总模块，实际 \(stats.totalModules)")
         }
         let statsNames = stats.moduleNames.sorted()
         guard statsNames == ["StatA", "StatB", "StatC"] else {
-            fatalError("❌ Test 8 failed: expected [StatA, StatB, StatC], got \(statsNames)")
+            fatalError("❌ 测试8失败: 期望[StatA, StatB, StatC]，实际 \(statsNames)")
         }
         
         ModuleRegistry.shared.unregister(name: "StatA")
         ModuleRegistry.shared.unregister(name: "StatB")
         ModuleRegistry.shared.unregister(name: "StatC")
         
-        print("✅ Test 8 passed: stats correct")
+        print("✅ 测试8通过: 统计正确")
     }
     
     /// Test 9: Thread safety (100 concurrent registrations)
     public static func testThreadSafety() {
-        print("\n🧪 Test 9: Thread Safety (100 concurrent registrations)")
+        print("\n🧪 测试9: 线程安全(100并发注册)")
         
         let concurrentRegistry = ModuleRegistry()
         let group = DispatchGroup()
@@ -406,9 +406,9 @@ public enum ModuleRegistryTests {
         group.wait()
         
         guard concurrentRegistry.allModuleNames.count == 100 else {
-            fatalError("❌ Test 9 failed: expected 100 modules after concurrent writes, got \(concurrentRegistry.allModuleNames.count)")
+            fatalError("❌ 测试9失败: 期望并发写入后100个模块，实际 \(concurrentRegistry.allModuleNames.count)")
         }
         
-        print("✅ Test 9 passed: \(concurrentRegistry.allModuleNames.count) concurrent registrations successful")
+        print("✅ 测试9通过: \(concurrentRegistry.allModuleNames.count) concurrent registrations successful")
     }
 }

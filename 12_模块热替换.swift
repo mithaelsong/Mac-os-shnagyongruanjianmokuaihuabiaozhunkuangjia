@@ -1,21 +1,21 @@
 // 功能12: 模块热替换
-// 对应: 不重启应用替换模块（卸载旧模块 → 加载新模块 → 启动新模块 → 恢复状态）
-// 优先级: P2
+// Purpose: Replace module at runtime without restart (unload old -> load new -> start new -> restore state)
+// Priority: P2
 
 import Foundation
 import os
 
-// MARK: - 模块状态可保存协议
-/// 支持热替换状态迁移的模块需实现此协议
+// MARK: - Module State Savable Protocol
+/// Modules supporting hot-swap state migration must implement this protocol
 public protocol ModuleStateSavable: AnyObject {
-    /// 返回模块当前状态（可序列化的字典）
+    /// Return current module state (serializable dictionary)
     func saveState() -> [String: Any]
-    /// 从字典恢复模块状态
+    /// Restore module state from dictionary
     func restoreState(_ state: [String: Any])
 }
 
-// MARK: - 热替换结果
-/// 模块热替换的详细结果
+// MARK: - Hot Swap Result
+/// Detailed hot swap result
 public enum HotSwapResult {
     case success(moduleName: String, fromVersion: String, toVersion: String)
     case failure(moduleName: String, reason: HotSwapFailureReason)
@@ -32,7 +32,7 @@ public enum HotSwapResult {
     }
 }
 
-/// 热替换失败原因
+/// Hot swap failure reason
 public enum HotSwapFailureReason: Error, CustomStringConvertible {
     case moduleNotLoaded(name: String)
     case unloadFailed(name: String, error: Error)
@@ -47,29 +47,29 @@ public enum HotSwapFailureReason: Error, CustomStringConvertible {
     public var description: String {
         switch self {
         case .moduleNotLoaded(let name):
-            return "模块 \(name) 未加载，无法热替换"
+            return "Module \(name) not loaded, cannot hot swap"
         case .unloadFailed(let name, let error):
-            return "卸载旧模块 \(name) 失败: \(error)"
+            return "Failed to unload old module \(name): \(error)"
         case .newModuleNotFound(let path):
-            return "新模块路径不存在: \(path)"
+            return "New module path does not exist: \(path)"
         case .newModuleInvalid(let name, let reason):
-            return "新模块 \(name) 无效: \(reason)"
+            return "New module \(name) invalid: \(reason)"
         case .loadFailed(let name, let error):
-            return "加载新模块 \(name) 失败: \(error)"
+            return "Failed to load new module \(name): \(error)"
         case .startFailed(let name, let error):
-            return "启动新模块 \(name) 失败: \(error)"
+            return "Failed to start new module \(name): \(error)"
         case .stateRestoreFailed(let name, let error):
-            return "恢复模块 \(name) 状态失败: \(error)"
+            return "Failed to restore state for module \(name): \(error)"
         case .dependencyBroken(let name, let missing):
-            return "模块 \(name) 依赖缺失: \(missing.joined(separator: ", "))"
+            return "Module \(name) missing dependencies: \(missing.joined(separator: ", "))"
         case .rollbackFailed(let name, let originalError):
-            return "回滚模块 \(name) 失败（原错误: \(originalError)）"
+            return "Failed to rollback module \(name) (original error: \(originalError))"
         }
     }
 }
 
-// MARK: - 模块状态快照
-/// 保存热替换过程中旧模块的状态
+// MARK: - Module State Snapshot
+/// Snapshot of old module state during hot swap
 public struct ModuleStateSnapshot {
     public let moduleName: String
     public let version: String
@@ -87,8 +87,8 @@ public struct ModuleStateSnapshot {
     }
 }
 
-// MARK: - 旧模块备份
-/// 热替换失败时用于回滚的旧模块备份
+// MARK: - Old Module Backup
+/// Backup of old module for rollback on failure
 private struct ModuleBackup {
     let instance: Any
     let metadata: ModuleMetadata?
@@ -97,8 +97,8 @@ private struct ModuleBackup {
 }
 
 // MARK: - ModuleHotSwapper
-/// 模块热替换器 (功能12)
-/// 支持在不重启应用的情况下替换模块，包含完整的失败回滚机制
+/// Module Hot Swapper (Function 12)
+/// Hot swap modules at runtime with full rollback on failure
 public final class ModuleHotSwapper {
     private let registry: ModuleRegistry
     private let loader: ModuleLoader
@@ -107,7 +107,7 @@ public final class ModuleHotSwapper {
     private let logger = ModuleLogger(category: "HotSwapper")
     private let scanner = ModuleScanner()
     
-    /// 当前正在热替换的模块集合（防止并发替换同一模块）
+    /// Currently swapping modules set (prevents concurrent swaps on same module)
     private var swappingModules: Set<String> = []
     private let swapLock = os_unfair_lock()
     
@@ -119,21 +119,21 @@ public final class ModuleHotSwapper {
         self.eventBus = eventBus
     }
     
-    // MARK: - 热替换入口
+    // MARK: - Hot Swap Entry Point
     
-    /// 热替换指定模块
+    /// Hot swap a specific module
     /// - Parameters:
-    ///   - moduleName: 要替换的模块名称
-    ///   - newPath: 新模块所在路径（包含 ModuleMetadata.json 和 bundle 的目录）
-    /// - Returns: 热替换结果
+    ///   - moduleName: Module name to replace
+    ///   - newPath: Path to new module directory (with ModuleMetadata.json and bundle)
+    /// - Returns: Hot swap result
     public func hotSwap(moduleName: String, with newPath: URL) -> HotSwapResult {
-        logger.info("🔄 开始热替换模块: \(moduleName) → \(newPath.path)")
+        logger.info("🔄 Hot swapping module: \(moduleName) -> \(newPath.path)")
         
-        // 1. 检查是否正在热替换该模块
+        // 1. Check if already swapping this module
         os_unfair_lock_lock(&swapLock)
         if swappingModules.contains(moduleName) {
             os_unfair_lock_unlock(&swapLock)
-            logger.warning("模块 \(moduleName) 正在进行热替换，拒绝重复请求")
+            logger.warning("Module \(moduleName) already being swapped, rejecting duplicate")
             return .failure(moduleName: moduleName, reason: .moduleNotLoaded(name: moduleName))
         }
         swappingModules.insert(moduleName)
@@ -145,30 +145,30 @@ public final class ModuleHotSwapper {
             os_unfair_lock_unlock(&swapLock)
         }
         
-        // 2. 检查旧模块是否已加载
+        // 2. Check if old module is loaded
         guard registry.isLoaded(name: moduleName) else {
-            logger.error("模块 \(moduleName) 未加载，无法热替换")
+            logger.error("Module \(moduleName) not loaded, cannot hot swap")
             return .failure(moduleName: moduleName, reason: .moduleNotLoaded(name: moduleName))
         }
         
-        // 3. 获取旧模块信息
+        // 3. Get old module info
         guard let oldModule = registry.getModule(named: moduleName) else {
-            logger.error("模块 \(moduleName) 实例获取失败")
+            logger.error("Module \(moduleName) instance retrieval failed")
             return .failure(moduleName: moduleName, reason: .moduleNotLoaded(name: moduleName))
         }
         
         let oldMetadata = registry.getMetadata(named: moduleName)
         let oldVersion = oldMetadata?.version ?? "unknown"
-        logger.info("旧模块 \(moduleName) 版本: \(oldVersion)")
+        logger.info("Old module \(moduleName) version: \(oldVersion)")
         
-        // 4. 发送即将热替换事件
+        // 4. Emit will-hot-swap event
         eventBus.emit(.moduleWillHotSwap, userInfo: [
             "moduleName": moduleName,
             "oldVersion": oldVersion,
             "newPath": newPath.path
         ])
         
-        // 5. 执行热替换流程
+        // 5. Execute hot swap flow
         let result = performHotSwap(
             moduleName: moduleName,
             oldModule: oldModule,
@@ -177,7 +177,7 @@ public final class ModuleHotSwapper {
             newPath: newPath
         )
         
-        // 6. 发送热替换完成事件
+        // 6. Emit hot swap completion event
         switch result {
         case .success(let name, let from, let to):
             eventBus.emit(.moduleDidHotSwap, userInfo: [
@@ -202,7 +202,7 @@ public final class ModuleHotSwapper {
         return result
     }
     
-    // MARK: - 核心热替换流程
+    // MARK: - Core Hot Swap Flow
     
     private func performHotSwap(
         moduleName: String,
@@ -212,14 +212,14 @@ public final class ModuleHotSwapper {
         newPath: URL
     ) -> HotSwapResult {
         
-        // ========== 阶段1: 保存旧模块状态 ==========
-        logger.info("📦 阶段1: 保存旧模块 \(moduleName) 状态")
+        // ========== Phase 1: Save Old Module State ==========
+        logger.info("📦 Phase 1: Save old module \(moduleName) state")
         let stateSnapshot = captureState(module: oldModule, name: moduleName, metadata: oldMetadata)
         
-        // 判断旧模块是否在运行中（通过检查是否实现了 XRZModule 且已启动）
+        // Check if old module is running (via XRZModule conformance and started state)
         let wasStarted = isModuleStarted(moduleName)
         
-        // 创建备份（用于回滚）
+        // Create backup for rollback
         let backup = ModuleBackup(
             instance: oldModule,
             metadata: oldMetadata,
@@ -227,11 +227,11 @@ public final class ModuleHotSwapper {
             wasStarted: wasStarted
         )
         
-        // ========== 阶段2: 扫描新模块 ==========
-        logger.info("🔍 阶段2: 扫描新模块路径: \(newPath.path)")
+        // ========== Phase 2: Scan New Module ==========
+        logger.info("🔍 Phase 2: Scan new module path: \(newPath.path)")
         
         guard FileManager.default.fileExists(atPath: newPath.path) else {
-            logger.error("新模块路径不存在: \(newPath.path)")
+            logger.error("New module path does not exist: \(newPath.path)")
             return .failure(moduleName: moduleName,
                            reason: .newModuleNotFound(path: newPath.path))
         }
@@ -239,72 +239,72 @@ public final class ModuleHotSwapper {
         let scanned = scanner.scan(directory: newPath)
         guard let newScannedModule = scanned.first(where: { $0.metadata.name == moduleName && $0.isValid }) else {
             let reason = scanned.first(where: { $0.metadata.name == moduleName })?.validationError
-                ?? "未找到名为 \(moduleName) 的有效模块"
-            logger.error("新模块无效: \(reason)")
+                ?? "No valid module named \(moduleName)"
+            logger.error("New module invalid: \(reason)")
             return .failure(moduleName: moduleName,
                            reason: .newModuleInvalid(name: moduleName, reason: reason))
         }
         
         let newVersion = newScannedModule.metadata.version
-        logger.info("新模块 \(moduleName) 版本: \(newVersion)")
+        logger.info("New module \(moduleName) version: \(newVersion)")
         
-        // ========== 阶段3: 卸载旧模块 ==========
-        logger.info("🗑️ 阶段3: 卸载旧模块 \(moduleName)")
+        // ========== Phase 3: Unload Old Module ==========
+        logger.info("🗑️ Phase 3: Unload old module \(moduleName)")
         do {
             try stopModuleIfNeeded(name: moduleName)
         } catch {
-            logger.error("停止旧模块 \(moduleName) 失败: \(error)")
+            logger.error("Failed to stop old module \(moduleName): \(error)")
             return .failure(moduleName: moduleName,
                            reason: .unloadFailed(name: moduleName, error: error))
         }
         
         let unloaded = unloader.forceUnload(name: moduleName)
-        guard unloaded else {
-            logger.error("卸载旧模块 \(moduleName) 失败")
-            // 尝试回滚
+        guard unloaded.isSuccess else {
+            logger.error("Failed to unload old module \(moduleName)")
+            // Attempt rollback
             return attemptRollback(moduleName: moduleName, backup: backup,
                                    originalReason: .unloadFailed(name: moduleName, error: NSError(domain: "HotSwap", code: 1)))
         }
         
-        logger.info("旧模块 \(moduleName) 已卸载")
+        logger.info("Old module \(moduleName) unloaded")
         
-        // ========== 阶段4: 加载新模块 ==========
-        logger.info("📥 阶段4: 加载新模块 \(moduleName)")
+        // ========== Phase 4: Load New Module ==========
+        logger.info("📥 Phase 4: Load new module \(moduleName)")
         let loadResult = loader.load(module: newScannedModule)
         
         guard case .success = loadResult else {
             let failureReason: HotSwapFailureReason
             if case .failure(let error) = loadResult {
                 failureReason = .loadFailed(name: moduleName, error: error)
-                logger.error("加载新模块 \(moduleName) 失败: \(error)")
+                logger.error("Failed to load new module \(moduleName): \(error)")
             } else {
                 failureReason = .loadFailed(name: moduleName, error: .loadFailed(name: moduleName, reason: "Unknown"))
-                logger.error("加载新模块 \(moduleName) 失败: 未知错误")
+                logger.error("Failed to load new module \(moduleName): unknown error")
             }
-            // 回滚到旧模块
+            // Rollback to old module
             return attemptRollback(moduleName: moduleName, backup: backup, originalReason: failureReason)
         }
         
-        logger.info("新模块 \(moduleName) 加载成功")
+        logger.info("New module \(moduleName) loaded successfully")
         
-        // ========== 阶段5: 启动新模块 ==========
-        logger.info("🚀 阶段5: 启动新模块 \(moduleName)")
+        // ========== Phase 5: Start New Module ==========
+        logger.info("🚀 Phase 5: Start new module \(moduleName)")
         do {
             try startModuleIfNeeded(name: moduleName)
         } catch {
-            logger.error("启动新模块 \(moduleName) 失败: \(error)")
-            // 卸载新模块，回滚到旧模块
+            logger.error("Failed to start new module \(moduleName): \(error)")
+            // Unload new module, rollback to old module
             _ = unloader.forceUnload(name: moduleName)
             return attemptRollback(moduleName: moduleName, backup: backup,
                                    originalReason: .startFailed(name: moduleName, error: error))
         }
         
-        logger.info("新模块 \(moduleName) 启动成功")
+        logger.info("New module \(moduleName) started successfully")
         
-        // ========== 阶段6: 恢复状态 ==========
-        logger.info("♻️ 阶段6: 恢复模块 \(moduleName) 状态")
+        // ========== Phase 6: Restore State ==========
+        logger.info("♻️ Phase 6: Restore module \(moduleName) state")
         guard let newModule = registry.getModule(named: moduleName) else {
-            logger.error("获取新模块 \(moduleName) 实例失败，无法恢复状态")
+            logger.error("Failed to get new module \(moduleName) instance, cannot restore state")
             _ = unloader.forceUnload(name: moduleName)
             return attemptRollback(moduleName: moduleName, backup: backup,
                                    originalReason: .stateRestoreFailed(name: moduleName, error: NSError(domain: "HotSwap", code: 2)))
@@ -312,67 +312,67 @@ public final class ModuleHotSwapper {
         
         do {
             try restoreState(module: newModule, snapshot: stateSnapshot)
-            logger.info("模块 \(moduleName) 状态恢复成功")
+            logger.info("Module \(moduleName) state restored")
         } catch {
-            logger.warning("恢复模块 \(moduleName) 状态失败: \(error)，但模块已正常运行")
-            // 状态恢复失败不阻止热替换成功，记录警告即可
+            logger.warning("Failed to restore module \(moduleName) state: \(error), module runs normally")
+            // State restore failure does not block hot swap success, log warning only
         }
         
-        // ========== 热替换成功 ==========
-        logger.info("✅ 热替换成功: \(moduleName) \(oldVersion) → \(newVersion)")
+        // ========== Hot Swap Succeeded ==========
+        logger.info("✅ Hot swap succeeded: \(moduleName) \(oldVersion) -> \(newVersion)")
         return .success(moduleName: moduleName, fromVersion: oldVersion, toVersion: newVersion)
     }
     
-    // MARK: - 回滚机制
+    // MARK: - Rollback
     
-    /// 热替换失败时回滚到旧模块
+    /// Rollback to old module on hot swap failure
     private func attemptRollback(
         moduleName: String,
         backup: ModuleBackup,
         originalReason: HotSwapFailureReason
     ) -> HotSwapResult {
-        logger.warning("🔄 开始回滚模块 \(moduleName) 到旧版本 \(backup.stateSnapshot.version)")
+        logger.warning("🔄 Starting rollback for module \(moduleName) to old version \(backup.stateSnapshot.version)")
         
         do {
-            // 重新注册旧模块
+            // Re-register old module
             registry.register(
                 module: backup.instance,
                 name: moduleName,
                 metadata: backup.metadata
             )
             
-            // 如果旧模块之前在运行，重新启动
+            // Restart old module if it was running before
             if backup.wasStarted {
-                logger.info("重新启动旧模块 \(moduleName)")
+                logger.info("Restarting old module \(moduleName)")
                 if let module = backup.instance as? XRZModule {
                     try module.start()
                 }
             }
             
-            // 恢复旧模块状态
+            // Restore old module state
             try restoreState(module: backup.instance, snapshot: backup.stateSnapshot)
             
-            logger.info("✅ 回滚成功: 模块 \(moduleName) 恢复到旧版本")
+            logger.info("✅ Rollback succeeded: Module \(moduleName) restored to old version")
             return .rolledBack(moduleName: moduleName, reason: originalReason)
             
         } catch {
-            logger.error("💥 回滚失败: \(error)")
+            logger.error("💥 Rollback failed: \(error)")
             return .failure(moduleName: moduleName,
                            reason: .rollbackFailed(name: moduleName, originalError: error))
         }
     }
     
-    // MARK: - 状态管理
+    // MARK: - State Management
     
-    /// 捕获模块状态
+    /// Capture module state
     private func captureState(module: Any, name: String, metadata: ModuleMetadata?) -> ModuleStateSnapshot {
         var state: [String: Any] = [:]
         
         if let savable = module as? ModuleStateSavable {
             state = savable.saveState()
-            logger.info("模块 \(name) 状态已保存，包含 \(state.count) 个键")
+            logger.info("Module \(name) state saved with \(state.count) keys")
         } else {
-            logger.info("模块 \(name) 未实现 ModuleStateSavable，状态为空")
+            logger.info("Module \(name) does not implement ModuleStateSavable, state is empty")
         }
         
         return ModuleStateSnapshot(
@@ -383,71 +383,71 @@ public final class ModuleHotSwapper {
         )
     }
     
-    /// 恢复模块状态
+    /// Restore module state
     private func restoreState(module: Any, snapshot: ModuleStateSnapshot) throws {
         guard let savable = module as? ModuleStateSavable else {
-            logger.info("模块 \(snapshot.moduleName) 未实现 ModuleStateSavable，跳过状态恢复")
+            logger.info("Module \(snapshot.moduleName) does not implement ModuleStateSavable, skip state restore")
             return
         }
         
         guard !snapshot.state.isEmpty else {
-            logger.info("模块 \(snapshot.moduleName) 状态为空，无需恢复")
+            logger.info("Module \(snapshot.moduleName) state is empty, skip restore")
             return
         }
         
         savable.restoreState(snapshot.state)
     }
     
-    // MARK: - 辅助方法
+    // MARK: - Helper Methods
     
-    /// 检查模块是否已启动（通过 XRZModule 协议）
+    /// Check if module has started (via XRZModule protocol)
     private func isModuleStarted(_ name: String) -> Bool {
         guard let module = registry.getModule(named: name) as? XRZModule else {
             return false
         }
-        // 这里假设如果模块在注册表中且是 XRZModule，则认为它已启动
-        // 实际可以通过额外标志位来精确判断
+        // Assume module is started if registered and conforms to XRZModule
+        // Use additional flags for precise check
         return true
     }
     
-    /// 如果模块已启动，先停止它
+    /// Stop module if it is started
     private func stopModuleIfNeeded(name: String) throws {
         guard let module = registry.getModule(named: name) as? XRZModule else {
             return
         }
-        logger.info("停止模块 \(name)")
+        logger.info("Stopping module \(name)")
         try module.stop()
     }
     
-    /// 启动模块
+    /// Start module
     private func startModuleIfNeeded(name: String) throws {
         guard let module = registry.getModule(named: name) as? XRZModule else {
             throw HotSwapFailureReason.moduleNotLoaded(name: name)
         }
-        logger.info("启动模块 \(name)")
+        logger.info("Starting module \(name)")
         try module.start()
     }
     
-    // MARK: - 批量热替换（高级功能）
+    // MARK: - Batch Hot Swap (Advanced)
     
-    /// 批量热替换多个模块（按依赖顺序）
+    /// Batch hot swap multiple modules (dependency-ordered)
     /// - Parameter swaps: [(moduleName, newPath)]
-    /// - Returns: 每个模块的热替换结果
+    /// - Returns: Hot swap result per module
     public func hotSwapBatch(_ swaps: [(String, URL)]) -> [HotSwapResult] {
-        logger.info("🔄 批量热替换 \(swaps.count) 个模块")
+        logger.info("🔄 Batch hot swapping \(swaps.count) modules")
         
         var results: [HotSwapResult] = []
         var failedModules: Set<String> = []
         
-        // 按依赖顺序排序：先替换无依赖的模块
+        // Sort by dependency order: replace independent modules first
         let sortedSwaps = sortByDependencies(swaps: swaps)
         
         for (name, path) in sortedSwaps {
-            // 如果依赖模块替换失败，跳过依赖它的模块
+            // Skip dependents if their dependency failed
             let deps = registry.getMetadata(named: name)?.dependencies ?? []
             let hasFailedDep = deps.contains(where: { failedModules.contains($0) })
             if hasFailedDep {
-                logger.warning("模块 \(name) 的依赖模块替换失败，跳过")
+                logger.warning("Module \(name) dependency swap failed, skipping")
                 results.append(.failure(
                     moduleName: name,
                     reason: .dependencyBroken(name: name, missing: deps.filter { failedModules.contains($0) })
@@ -465,12 +465,12 @@ public final class ModuleHotSwapper {
         }
         
         let successCount = results.filter { $0.isSuccess }.count
-        logger.info("批量热替换完成: \(successCount)/\(swaps.count) 成功")
+        logger.info("Batch hot swap complete: \(successCount)/\(swaps.count) succeeded")
         
         return results
     }
     
-    /// 按依赖关系排序（依赖少的先替换）
+    /// Sort by dependencies (fewest dependencies first)
     private func sortByDependencies(swaps: [(String, URL)]) -> [(String, URL)] {
         let swapMap = Dictionary(uniqueKeysWithValues: swaps)
         let names = swaps.map { $0.0 }
@@ -479,34 +479,34 @@ public final class ModuleHotSwapper {
             let depsA = registry.getMetadata(named: a.0)?.dependencies ?? []
             let depsB = registry.getMetadata(named: b.0)?.dependencies ?? []
             
-            // 如果 A 依赖 B，A 应该排在 B 后面
+            // If A depends on B, A should come after B
             if depsA.contains(b.0) { return false }
             if depsB.contains(a.0) { return true }
             
-            // 否则按依赖数量排序（依赖少的先替换）
+            // Otherwise sort by dependency count (fewest first)
             return depsA.count < depsB.count
         }
     }
 }
 
-// MARK: - 热替换通知扩展
+// MARK: - Hot Swap Notification Extensions
 public extension Notification.Name {
-    /// 模块即将热替换
+    /// Module will hot swap
     static let moduleWillHotSwap = Notification.Name("com.xianrenzhilu.module.willHotSwap")
-    /// 模块热替换成功
+    /// Module hot swap succeeded
     static let moduleDidHotSwap = Notification.Name("com.xianrenzhilu.module.didHotSwap")
-    /// 模块热替换失败（可能包含回滚信息）
+    /// Module hot swap failed (may include rollback info)
     static let moduleHotSwapFailed = Notification.Name("com.xianrenzhilu.module.hotSwapFailed")
 }
 
-// MARK: - 测试代码
-/// ModuleHotSwapper 功能验证测试
-/// 运行方式：在单元测试或 Playground 中调用 `ModuleHotSwapperTests.runAllTests()`
+// MARK: - Test Code
+/// ModuleHotSwapper functional verification tests
+/// Run: `ModuleHotSwapperTests.runAllTests()` in unit tests or playground
 public enum ModuleHotSwapperTests {
     
-    // MARK: - 模拟模块
+    // MARK: - Mock Modules
     
-    /// 支持状态保存的模拟模块
+    /// Mock module supporting state save/restore
     final class MockSavableModule: XRZModule, ModuleStateSavable {
         static var moduleName: String = "MockSavableModule"
         
@@ -519,6 +519,11 @@ public enum ModuleHotSwapperTests {
         private(set) var shouldFailStart = false
         private(set) var counter = 0
         
+        required init() {
+            self.name = "MockSavableModule"
+            self.version = "1.0.0"
+        }
+        
         init(name: String, version: String = "1.0.0") {
             self.name = name
             self.version = version
@@ -526,7 +531,7 @@ public enum ModuleHotSwapperTests {
         
         func start() throws {
             if shouldFailStart {
-                throw NSError(domain: "MockModule", code: 1, userInfo: [NSLocalizedDescriptionKey: "模拟启动失败"])
+                throw NSError(domain: "MockModule", code: 1, userInfo: [NSLocalizedDescriptionKey: "simulated start failure"])
             }
             isStarted = true
             isStopped = false
@@ -556,13 +561,17 @@ public enum ModuleHotSwapperTests {
         }
     }
     
-    /// 不支持状态保存的模拟模块
+    /// Mock module without state save support
     final class MockSimpleModule: XRZModule {
         static var moduleName: String = "MockSimpleModule"
         
         let name: String
         private(set) var isStarted = false
         private(set) var isStopped = false
+        
+        required init() {
+            self.name = "MockSimpleModule"
+        }
         
         init(name: String) {
             self.name = name
@@ -580,10 +589,10 @@ public enum ModuleHotSwapperTests {
         var services: [String: Any] { [:] }
     }
     
-    // MARK: - 测试入口
+    // MARK: - Test Entry
     
     public static func runAllTests() {
-        print("=== ModuleHotSwapper Tests ===")
+        print("=== 功能12测试 ===")
         
         testHotSwapSuccess()
         testHotSwapWithStateMigration()
@@ -593,13 +602,13 @@ public enum ModuleHotSwapperTests {
         testHotSwapBatch()
         testHotSwapConcurrencyProtection()
         
-        print("\n=== All ModuleHotSwapper Tests Passed ✅ ===")
+        print("\n=== 全部功能12测试通过 ✅ ===")
     }
     
-    // MARK: - 测试1: 正常热替换成功
+    // MARK: - Test 1: Successful Hot Swap
     
     public static func testHotSwapSuccess() {
-        print("\n🧪 Test 1: 正常热替换成功")
+        print("\n🧪 测试1: 成功热替换")
         
         let registry = ModuleRegistry()
         let eventBus = EventBus()
@@ -608,7 +617,7 @@ public enum ModuleHotSwapperTests {
         let unloader = ModuleUnloader(registry: registry, eventBus: eventBus)
         let swapper = ModuleHotSwapper(registry: registry, loader: loader, unloader: unloader, eventBus: eventBus)
         
-        // 准备旧模块
+        // Prepare old module
         let oldModule = MockSimpleModule(name: "TestModule")
         try? oldModule.start()
         registry.register(
@@ -623,11 +632,11 @@ public enum ModuleHotSwapperTests {
             )
         )
         
-        // 准备新模块路径（模拟扫描）
+        // Prepare new module path (mock scan)
         let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("HotSwapTest_\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
         
-        // 创建 ModuleMetadata.json
+        // Create ModuleMetadata.json
         let meta = ModuleMetadata(
             name: "TestModule",
             version: "2.0.0",
@@ -639,74 +648,74 @@ public enum ModuleHotSwapperTests {
         let metaURL = tempDir.appendingPathComponent("ModuleMetadata.json")
         try! metaData.write(to: metaURL)
         
-        // 执行热替换
+        // Execute hot swap
         let result = swapper.hotSwap(moduleName: "TestModule", with: tempDir)
         
-        // 由于 loader.load 需要真实 bundle，这里会失败，但验证流程正确
-        // 实际测试中需要 Mock loader，这里至少验证不崩溃和错误处理
+        // loader.load needs real bundle, will fail here, but verify flow is correct
+        // Real test needs mock loader; at minimum verify no crash and error handling
         switch result {
         case .success:
-            // 如果 bundle 加载成功
-            print("✅ Test 1 passed: Hot swap succeeded")
+            // If bundle loads successfully
+            print("✅ 测试1通过: 热替换成功")
         case .failure(let name, let reason):
-            // 预期结果：bundle 不存在导致加载失败
+            // Expected: bundle doesn't exist, load fails
             guard name == "TestModule" else {
-                fatalError("❌ Test 1 failed: Wrong module name in failure")
+                fatalError("❌ 测试1失败: 失败中模块名称错误")
             }
-            print("✅ Test 1 passed: Handled failure gracefully - \(reason)")
+            print("✅ 测试1通过: 优雅处理失败 - \(reason)")
         case .rolledBack:
-            print("✅ Test 1 passed: Rollback executed on failure")
+            print("✅ 测试1通过: 失败时执行回滚")
         }
         
-        // 清理
+        // Cleanup
         try? FileManager.default.removeItem(at: tempDir)
     }
     
-    // MARK: - 测试2: 状态迁移
+    // MARK: - Test 2: State Migration
     
     public static func testHotSwapWithStateMigration() {
-        print("\n🧪 Test 2: 状态迁移（保存 → 恢复）")
+        print("\n🧪 测试2: 状态迁移")
         
-        // 测试状态保存/恢复逻辑
+        // Test state save/restore logic
         let module = MockSavableModule(name: "StateModule", version: "1.0.0")
         module.counter = 42
         try? module.start()
         
-        // 保存状态
+        // Save state
         let state = module.saveState()
         guard state["counter"] as? Int == 42 else {
-            fatalError("❌ Test 2 failed: State not saved correctly")
+            fatalError("❌ 测试2失败: 状态未正确保存")
         }
         
-        // 创建新模块并恢复状态
+        // Create new module and restore state
         let newModule = MockSavableModule(name: "StateModule", version: "2.0.0")
         newModule.restoreState(state)
         
         guard newModule.counter == 42 else {
-            fatalError("❌ Test 2 failed: State not restored correctly, counter=\(newModule.counter)")
+            fatalError("❌ 测试2失败: 状态未正确恢复，counter=\(newModule.counter)")
         }
         guard newModule.restoredState != nil else {
-            fatalError("❌ Test 2 failed: restoreState not called")
+            fatalError("❌ 测试2失败: restoreState未调用")
         }
         
-        print("✅ Test 2 passed: State migration works (counter=42 preserved)")
+        print("✅ 测试2通过: 状态迁移生效(counter=42保留)")
     }
     
-    // MARK: - 测试3: 失败回滚
+    // MARK: - Test 3: Rollback on Failure
     
     public static func testHotSwapRollbackOnFailure() {
-        print("\n🧪 Test 3: 新模块启动失败时回滚到旧模块")
+        print("\n🧪 测试3: 失败时回滚")
         
         let registry = ModuleRegistry()
         let eventBus = EventBus()
         let logger = ModuleLogger(category: "TestLoader")
         
-        // 使用自定义 loader 来模拟加载成功但后续操作
+        // Use custom loader to simulate load success with subsequent operations
         let loader = ModuleLoader(registry: registry, eventBus: eventBus, logger: logger)
         let unloader = ModuleUnloader(registry: registry, eventBus: eventBus)
         let swapper = ModuleHotSwapper(registry: registry, loader: loader, unloader: unloader, eventBus: eventBus)
         
-        // 准备旧模块（已启动）
+        // Prepare old module (already started)
         let oldModule = MockSavableModule(name: "RollbackModule", version: "1.0.0")
         oldModule.counter = 100
         try? oldModule.start()
@@ -722,28 +731,28 @@ public enum ModuleHotSwapperTests {
             )
         )
         
-        // 准备一个不存在的路径，触发加载失败 → 回滚
+        // Prepare non-existent path to trigger load failure -> rollback
         let fakePath = URL(fileURLWithPath: "/tmp/nonexistent_hotswap_\(UUID().uuidString)")
         
         let result = swapper.hotSwap(moduleName: "RollbackModule", with: fakePath)
         
-        // 验证结果：应该失败或回滚
+        // Verify: should fail or rollback
         guard !result.isSuccess else {
-            fatalError("❌ Test 3 failed: Should not succeed with invalid path")
+            fatalError("❌ 测试3失败: 无效路径不应成功")
         }
         
-        // 验证旧模块仍然存在于注册表（回滚成功）
+        // Verify old module still in registry (rollback succeeded)
         guard registry.isLoaded(name: "RollbackModule") else {
-            fatalError("❌ Test 3 failed: Old module not restored after rollback")
+            fatalError("❌ 测试3失败: 回滚后旧模块未恢复")
         }
         
-        print("✅ Test 3 passed: Rollback restored old module to registry")
+        print("✅ 测试3通过: 回滚恢复旧模块到注册表")
     }
     
-    // MARK: - 测试4: 模块未加载时拒绝替换
+    // MARK: - Test 4: Reject Unloaded Module
     
     public static func testHotSwapModuleNotLoaded() {
-        print("\n🧪 Test 4: 未加载模块拒绝热替换")
+        print("\n🧪 测试4: 拒绝未加载模块")
         
         let registry = ModuleRegistry()
         let eventBus = EventBus()
@@ -758,24 +767,24 @@ public enum ModuleHotSwapperTests {
         )
         
         guard case .failure(let name, let reason) = result else {
-            fatalError("❌ Test 4 failed: Should return failure for non-loaded module")
+            fatalError("❌ 测试4失败: 未加载模块应返回失败")
         }
         guard name == "NotLoadedModule" else {
-            fatalError("❌ Test 4 failed: Wrong module name")
+            fatalError("❌ 测试4失败: 错误的模块名称")
         }
         
         switch reason {
         case .moduleNotLoaded:
-            print("✅ Test 4 passed: Correctly rejected swap for non-loaded module")
+            print("✅ 测试4通过: 正确拒绝未加载模块的替换")
         default:
-            fatalError("❌ Test 4 failed: Wrong failure reason: \(reason)")
+            fatalError("❌ 测试4失败: 失败原因错误: \(reason)")
         }
     }
     
-    // MARK: - 测试5: 无效新模块路径
+    // MARK: - Test 5: Invalid New Module Path
     
     public static func testHotSwapInvalidNewModule() {
-        print("\n🧪 Test 5: 无效新模块路径处理")
+        print("\n🧪 测试5: 无效路径")
         
         let registry = ModuleRegistry()
         let eventBus = EventBus()
@@ -784,7 +793,7 @@ public enum ModuleHotSwapperTests {
         let unloader = ModuleUnloader(registry: registry, eventBus: eventBus)
         let swapper = ModuleHotSwapper(registry: registry, loader: loader, unloader: unloader, eventBus: eventBus)
         
-        // 注册旧模块
+        // Register old module
         let oldModule = MockSimpleModule(name: "InvalidPathModule")
         registry.register(
             module: oldModule,
@@ -802,21 +811,21 @@ public enum ModuleHotSwapperTests {
         let result = swapper.hotSwap(moduleName: "InvalidPathModule", with: fakePath)
         
         guard !result.isSuccess else {
-            fatalError("❌ Test 5 failed: Should not succeed with invalid path")
+            fatalError("❌ 测试5失败: 无效路径不应成功")
         }
         
-        // 旧模块应被回滚恢复
+        // Old module should be restored via rollback
         guard registry.isLoaded(name: "InvalidPathModule") else {
-            fatalError("❌ Test 5 failed: Old module not restored")
+            fatalError("❌ 测试5失败: 旧模块未恢复")
         }
         
-        print("✅ Test 5 passed: Invalid path handled with rollback")
+        print("✅ 测试5通过: 无效路径已处理并回滚")
     }
     
-    // MARK: - 测试6: 批量热替换
+    // MARK: - Test 6: Batch Hot Swap
     
     public static func testHotSwapBatch() {
-        print("\n🧪 Test 6: 批量热替换")
+        print("\n🧪 测试6: 批量替换")
         
         let registry = ModuleRegistry()
         let eventBus = EventBus()
@@ -825,13 +834,13 @@ public enum ModuleHotSwapperTests {
         let unloader = ModuleUnloader(registry: registry, eventBus: eventBus)
         let swapper = ModuleHotSwapper(registry: registry, loader: loader, unloader: unloader, eventBus: eventBus)
         
-        // 注册两个模块
+        // Register two modules
         let modA = MockSimpleModule(name: "BatchA")
         let modB = MockSimpleModule(name: "BatchB")
         registry.register(module: modA, name: "BatchA", metadata: ModuleMetadata(name: "BatchA", version: "1.0", description: "", entryClass: "", dependencies: []))
         registry.register(module: modB, name: "BatchB", metadata: ModuleMetadata(name: "BatchB", version: "1.0", description: "", entryClass: "", dependencies: ["BatchA"]))
         
-        // 批量热替换（都使用无效路径，预期全部失败但回滚）
+        // Batch swap (both use invalid paths, expect all fail with rollback)
         let swaps = [
             ("BatchA", URL(fileURLWithPath: "/tmp/fake1")),
             ("BatchB", URL(fileURLWithPath: "/tmp/fake2"))
@@ -840,24 +849,24 @@ public enum ModuleHotSwapperTests {
         let results = swapper.hotSwapBatch(swaps)
         
         guard results.count == 2 else {
-            fatalError("❌ Test 6 failed: Expected 2 results, got \(results.count)")
+            fatalError("❌ 测试6失败: 期望2个结果，实际 \(results.count)")
         }
         
-        // 验证两个模块都还在注册表（回滚成功）
+        // Verify both modules still in registry (rollback succeeded)
         guard registry.isLoaded(name: "BatchA") else {
-            fatalError("❌ Test 6 failed: BatchA not restored")
+            fatalError("❌ 测试6失败: BatchA未恢复")
         }
         guard registry.isLoaded(name: "BatchB") else {
-            fatalError("❌ Test 6 failed: BatchB not restored")
+            fatalError("❌ 测试6失败: BatchB未恢复")
         }
         
-        print("✅ Test 6 passed: Batch hot swap handled correctly with rollback")
+        print("✅ 测试6通过: 批量热替换正确处理并回滚")
     }
     
-    // MARK: - 测试7: 并发保护
+    // MARK: - Test 7: Concurrent Protection
     
     public static func testHotSwapConcurrencyProtection() {
-        print("\n🧪 Test 7: 并发热替换保护（同一模块不能并发替换）")
+        print("\n🧪 测试7: 并发保护")
         
         let registry = ModuleRegistry()
         let eventBus = EventBus()
@@ -883,7 +892,7 @@ public enum ModuleHotSwapperTests {
         var results: [HotSwapResult] = []
         let lock = NSLock()
         
-        // 并发发起 10 次同一模块的热替换
+        // Concurrently initiate 10 hot swaps for the same module
         for i in 0..<10 {
             group.enter()
             DispatchQueue.global().async {
@@ -898,16 +907,16 @@ public enum ModuleHotSwapperTests {
         
         group.wait()
         
-        // 所有请求都应该完成且不崩溃
+        // All requests should complete without crash
         guard results.count == 10 else {
-            fatalError("❌ Test 7 failed: Expected 10 results, got \(results.count)")
+            fatalError("❌ 测试7失败: 期望10个结果，实际 \(results.count)")
         }
         
-        // 模块应仍然存在于注册表
+        // Module should still be in registry
         guard registry.isLoaded(name: "ConcurrentModule") else {
-            fatalError("❌ Test 7 failed: Module removed from registry")
+            fatalError("❌ 测试7失败: 模块从注册表中移除")
         }
         
-        print("✅ Test 7 passed: Concurrent hot swap requests handled safely (\(results.count) requests)")
+        print("✅ 测试7通过: 并发热替换请求安全处理 (\(results.count) requests)")
     }
 }

@@ -1,13 +1,13 @@
 // 功能13: 事件总线
-// 对应: 模块可以发送事件，其他模块可以监听（类型安全的发布/订阅机制）
+// 模块间通信的核心机制，发布/订阅模式
 // 优先级: P0
 
 import Foundation
 import os
 
 // MARK: - EventType
-/// 类型安全的事件标识符
-/// 使用泛型 T 约束事件载荷类型，编译期即可保证类型安全
+/// Type-safe event identifier
+/// Generic T constrains payload type for compile-time safety
 public struct EventType<T> {
     public let name: String
     
@@ -16,38 +16,38 @@ public struct EventType<T> {
     }
 }
 
-// MARK: - 预定义事件类型（类型安全版本）
+// MARK: - Predefined Events (Type-Safe)
 public extension EventType where T == [String: Any] {
-    /// 模块加载完成事件
-    /// 载荷示例: ["moduleName": "KLine", "moduleVersion": "1.0.0", "loadTime": 0.123]
+    /// Module loaded event
+    /// Ex: ["moduleName":"KLine","moduleVersion":"1.0.0","loadTime":0.123]
     static var moduleDidLoad: EventType<[String: Any]> { EventType("moduleDidLoad") }
     
-    /// 模块卸载完成事件
-    /// 载荷示例: ["moduleName": "KLine"]
+    /// Module unloaded event
+    /// Ex: ["moduleName":"KLine"]
     static var moduleDidUnload: EventType<[String: Any]> { EventType("moduleDidUnload") }
     
-    /// 模块加载失败事件
-    /// 载荷示例: ["moduleName": "KLine", "error": "Bundle not found"]
+    /// Module load failed event
+    /// Ex: ["moduleName":"KLine","error":"Bundle not found"]
     static var moduleLoadFailed: EventType<[String: Any]> { EventType("moduleLoadFailed") }
     
-    /// 模块启动完成事件
-    /// 载荷示例: ["moduleName": "KLine"]
+    /// Module started event
+    /// Ex: ["moduleName":"KLine"]
     static var moduleStarted: EventType<[String: Any]> { EventType("moduleStarted") }
     
-    /// 模块停止完成事件
-    /// 载荷示例: ["moduleName": "KLine"]
+    /// Module stopped event
+    /// Ex: ["moduleName":"KLine"]
     static var moduleStopped: EventType<[String: Any]> { EventType("moduleStopped") }
     
-    /// 配置变更事件
-    /// 载荷示例: ["key": "theme", "oldValue": "light", "newValue": "dark"]
+    /// Config changed event
+    /// Ex: ["key":"theme","oldValue":"light","newValue":"dark"]
     static var configChanged: EventType<[String: Any]> { EventType("configChanged") }
     
-    /// 数据更新事件
-    /// 载荷示例: ["source": "market", "dataType": "kline", "payload": [...]]
+    /// Data updated event
+    /// Ex: ["source":"market","dataType":"kline","payload":[...]]
     static var dataUpdated: EventType<[String: Any]> { EventType("dataUpdated") }
 }
 
-// MARK: - Notification.Name 扩展（兼容 NotificationCenter 的旧代码）
+// MARK: - Notification.Name Extension (Legacy Compat)
 public extension Notification.Name {
     static let moduleDidLoad = Notification.Name("moduleDidLoad")
     static let moduleDidUnload = Notification.Name("moduleDidUnload")
@@ -59,18 +59,18 @@ public extension Notification.Name {
 }
 
 // MARK: - EventBus
-/// 事件总线 (功能13)
-/// 模块间通信的核心机制，解耦模块间的直接调用关系
-/// 特性:
-/// - 发布/订阅/取消/一次性订阅
-/// - 线程安全（os_unfair_lock 保护订阅者列表）
-/// - 类型安全（EventType<T> 泛型约束）
-/// - 支持自定义分发队列（异步/同步）
-/// - 兼容 NotificationCenter 风格的旧 API
+/// Event Bus (Function 13)
+/// Core inter-module communication, decouples direct calls
+/// Features:
+/// - Pub/Sub/Unsub/Once
+/// - Thread-safe (os_unfair_lock)
+/// - Type-safe (EventType<T> generic)
+/// - Custom dispatch queue (async/sync)
+/// - Legacy NotificationCenter API
 public final class EventBus {
     public static let shared = EventBus()
     
-    /// 订阅者内部结构
+    /// Subscriber internal struct
     private struct Subscriber {
         let id: String
         let once: Bool
@@ -78,21 +78,21 @@ public final class EventBus {
         let handler: (Any) -> Void
     }
     
-    /// 事件名 -> 订阅者ID -> 订阅者
-    /// 双层字典结构，快速按事件名和订阅ID定位
+    /// EventName -> SubID -> Subscriber
+    /// Nested dict for fast lookup
     private var subscribers: [String: [String: Subscriber]] = [:]
     private var lock = os_unfair_lock()
     private let logger = ModuleLogger(category: "EventBus")
     
     private init() {}
     
-    // MARK: - 订阅事件（on）
-    /// 订阅指定事件，每次事件发布都会触发 handler
+    // MARK: - Subscribe (on)
+    /// Subscribe to event, handler called on every emit
     /// - Parameters:
-    ///   - event: 事件类型（EventType<T>）
-    ///   - queue: 事件分发队列（nil 表示在发布线程同步调用）
-    ///   - handler: 事件处理闭包，接收类型安全的载荷
-    /// - Returns: 订阅ID，用于后续取消订阅
+    ///   - event: Event type (EventType<T>)
+    ///   - queue: Queue (nil = sync on emitter thread)
+    ///   - handler: Handler receiving type-safe payload
+    /// - Returns: Subscription ID for cancellation
     @discardableResult
     public func on<T>(
         _ event: EventType<T>,
@@ -120,14 +120,14 @@ public final class EventBus {
         return id
     }
     
-    // MARK: - 一次性订阅（once）
-    /// 订阅指定事件，仅触发一次后自动取消订阅
-    /// 适合只需要监听一次的场景（如初始化完成通知）
+    // MARK: - One-time (once)
+    /// Subscribe once, auto-unsubscribes after first emit
+    /// For one-time notifications (e.g. init complete)
     /// - Parameters:
-    ///   - event: 事件类型
-    ///   - queue: 事件分发队列
-    ///   - handler: 事件处理闭包
-    /// - Returns: 订阅ID（可用于手动取消）
+    ///   - event: Event type
+    ///   - queue: Dispatch queue
+    ///   - handler: Event handler
+    /// - Returns: Subscription ID
     @discardableResult
     public func once<T>(
         _ event: EventType<T>,
@@ -136,7 +136,7 @@ public final class EventBus {
     ) -> String {
         let id = UUID().uuidString
         
-        // 使用 weak self 避免在事件总线释放前造成循环引用
+        // Use weak self to avoid retain cycle
         let subscriber = Subscriber(
             id: id,
             once: true,
@@ -145,7 +145,7 @@ public final class EventBus {
                 if let typedPayload = payload as? T {
                     handler(typedPayload)
                 }
-                // 自动取消订阅（once 特性）
+                // Auto-unsubscribe (once feature)
                 self?.removeSubscriber(id: id, from: event.name)
             }
         )
@@ -158,10 +158,10 @@ public final class EventBus {
         return id
     }
     
-    // MARK: - 取消订阅（off）
-    /// 取消指定订阅，释放对应的 handler
-    /// 传入无效的订阅ID时记录警告日志
-    /// - Parameter subscriptionId: 订阅时返回的 ID
+    // MARK: - Unsubscribe (off)
+    /// 取消订阅, release handler
+    /// Logs warning for invalid ID
+    /// - Parameter subscriptionId: ID from on()/once()
     public func off(_ subscriptionId: String) {
         os_unfair_lock_lock(&lock)
         for eventName in subscribers.keys {
@@ -175,12 +175,12 @@ public final class EventBus {
         logger.warning("Subscription id \(subscriptionId.prefix(8))... not found (already unsubscribed?)")
     }
     
-    // MARK: - 发布事件（emit）
-    /// 发布事件到所有订阅者
-    /// 遍历订阅者列表时无需持有锁，保证高并发下的低延迟
+    // MARK: - Emit
+    /// Emit event to all subscribers
+    /// Iterates without lock for low-latency concurrency
     /// - Parameters:
-    ///   - event: 事件类型
-    ///   - payload: 事件载荷（类型必须与 EventType<T> 的 T 一致）
+    ///   - event: Event type
+    ///   - payload: Payload (must match EventType<T>)
     public func emit<T>(_ event: EventType<T>, payload: T) {
         os_unfair_lock_lock(&lock)
         let eventSubscribers = subscribers[event.name]?.values ?? []
@@ -205,10 +205,10 @@ public final class EventBus {
         }
     }
     
-    // MARK: - 兼容旧代码的发布接口（基于 Notification.Name）
-    /// 兼容 NotificationCenter 风格的发布接口
-    /// 内部将 userInfo 转换为 [String: Any] 后通过类型安全通道分发
-    /// 适用于旧代码或需要与 NotificationCenter 桥接的场景
+    // MARK: - Legacy Emit (Notification.Name)
+    /// Legacy NotificationCenter-compatible emit
+    /// Converts userInfo to [String:Any], dispatches via type-safe channel
+    /// For legacy code or NotificationCenter bridging
     public func emit(_ name: Notification.Name, userInfo: [AnyHashable: Any]? = nil) {
         let dict = userInfo?.reduce(into: [String: Any]()) { result, pair in
             if let key = pair.key as? String {
@@ -218,23 +218,23 @@ public final class EventBus {
         emit(EventType<[String: Any]>(name.rawValue), payload: dict)
     }
     
-    // MARK: - 统计信息
-    /// 获取总订阅者数量（所有事件累加）
+    // MARK: - Statistics
+    /// Total subscribers across all events
     public var subscriberCount: Int {
         os_unfair_lock_lock(&lock)
         defer { os_unfair_lock_unlock(&lock) }
         return subscribers.values.reduce(0) { $0 + $1.count }
     }
     
-    /// 获取指定事件的订阅者数量
+    /// Subscriber count for specific event
     public func subscriberCount<T>(for event: EventType<T>) -> Int {
         os_unfair_lock_lock(&lock)
         defer { os_unfair_lock_unlock(&lock) }
         return subscribers[event.name]?.count ?? 0
     }
     
-    // MARK: - 私有方法
-    /// 移除指定事件的订阅者（供 once 使用）
+    // MARK: - Private Methods
+    /// Remove subscriber from event (used by once)
     private func removeSubscriber(id: String, from eventName: String) {
         os_unfair_lock_lock(&lock)
         subscribers[eventName]?.removeValue(forKey: id)
@@ -243,14 +243,14 @@ public final class EventBus {
     }
 }
 
-// MARK: - 测试代码
-/// 事件总线功能验证
-/// 运行方式：在单元测试或 Playground 中调用 `EventBusTests.runAllTests()`
+// MARK: - Test Code
+/// EventBus functional tests
+/// Run: `EventBusTests.runAllTests()` in tests or playground
 public final class EventBusTests {
     
-    /// 运行所有测试
+    /// Run all tests
     public static func runAllTests() {
-        print("=== EventBus Tests ===")
+        print("=== 事件总线测试 ===")
         testBasicEmitAndOn()
         testOnceSubscription()
         testOffCancellation()
@@ -259,12 +259,12 @@ public final class EventBusTests {
         testThreadSafety()
         testAllPredefinedEvents()
         testCompatibleAPI()
-        print("\n=== All EventBus Tests Passed ✅ ===")
+        print("\n=== 全部事件总线测试通过 ✅ ===")
     }
     
-    // MARK: - 测试1: 基本发布和订阅
+    // MARK: - Test 1: Basic Emit and On
     private static func testBasicEmitAndOn() {
-        print("\n🧪 Test 1: Basic Emit and On")
+        print("\n🧪 测试1: 基本发布和订阅")
         
         let bus = EventBus()
         var received = false
@@ -278,19 +278,19 @@ public final class EventBusTests {
         bus.emit(.moduleDidLoad, payload: ["moduleName": "TestModule", "version": "1.0.0"])
         
         guard received else {
-            fatalError("❌ Test 1 failed: Subscriber did not receive event")
+            fatalError("❌ 测试1失败: 订阅者未收到事件")
         }
         guard let name = receivedPayload?["moduleName"] as? String, name == "TestModule" else {
-            fatalError("❌ Test 1 failed: Payload incorrect")
+            fatalError("❌ 测试1失败: 载荷不正确")
         }
         
-        print("✅ Test 1 passed: Event received with correct payload")
+        print("✅ 测试1通过: 事件正确接收")
         bus.off(id)
     }
     
-    // MARK: - 测试2: 一次性订阅
+    // MARK: - Test 2: Once Subscription
     private static func testOnceSubscription() {
-        print("\n🧪 Test 2: Once Subscription")
+        print("\n🧪 测试2: 一次性订阅")
         
         let bus = EventBus()
         var callCount = 0
@@ -300,20 +300,20 @@ public final class EventBusTests {
             print("   Once subscriber received: \(payload)")
         }
         
-        // 第一次发射（应触发）
+        // 第一次发送（应触发）
         bus.emit(.moduleDidUnload, payload: ["moduleName": "TestModule"])
-        // 第二次发射（不应触发）
+        // 第二次发送（不应触发）
         bus.emit(.moduleDidUnload, payload: ["moduleName": "TestModule"])
         
         guard callCount == 1 else {
-            fatalError("❌ Test 2 failed: Once subscriber called \(callCount) times, expected 1")
+            fatalError("❌ 测试2失败: 一次性订阅被调用了 \(callCount) 次，期望 1 次")
         }
-        print("✅ Test 2 passed: Once subscriber called exactly once")
+        print("✅ 测试2通过: 一次性订阅仅触发一次")
     }
     
-    // MARK: - 测试3: 取消订阅
+    // MARK: - Test 3: Cancellation
     private static func testOffCancellation() {
-        print("\n🧪 Test 3: Off Cancellation")
+        print("\n🧪 测试3: 取消订阅")
         
         let bus = EventBus()
         var received = false
@@ -326,22 +326,22 @@ public final class EventBusTests {
         // 取消订阅
         bus.off(id)
         
-        // 发射事件（不应触发已取消的订阅者）
+        // 发送事件（已取消的订阅者不应触发）
         bus.emit(.configChanged, payload: ["key": "theme", "value": "dark"])
         
         guard !received else {
-            fatalError("❌ Test 3 failed: Cancelled subscriber still received event")
+            fatalError("❌ 测试3失败: 已取消的订阅者仍收到事件")
         }
-        print("✅ Test 3 passed: Cancelled subscriber did not receive event")
+        print("✅ 测试3通过: 取消后未收到事件")
         
-        // 测试取消不存在的订阅（不应崩溃）
+        // 取消无效ID（不应崩溃）
         bus.off("invalid-id-12345")
-        print("✅ Test 3b passed: Cancelling invalid id handled gracefully")
+        print("✅ 测试3b通过: 取消无效ID正常处理")
     }
     
-    // MARK: - 测试4: 多个订阅者
+    // MARK: - Test 4: Multiple Subscribers
     private static func testMultipleSubscribers() {
-        print("\n🧪 Test 4: Multiple Subscribers")
+        print("\n🧪 测试4: 多个订阅者")
         
         let bus = EventBus()
         var countA = 0
@@ -355,14 +355,14 @@ public final class EventBusTests {
         bus.emit(.dataUpdated, payload: ["source": "market", "data": [1, 2, 3]])
         
         guard countA == 1 && countB == 1 && countC == 1 else {
-            fatalError("❌ Test 4 failed: Expected all 3 subscribers to fire once, got A=\(countA), B=\(countB), C=\(countC)")
+            fatalError("❌ 测试4失败: 期望3个订阅者都触发，实际 A=\(countA), B=\(countB), C=\(countC)")
         }
-        print("✅ Test 4 passed: All 3 subscribers received event")
+        print("✅ 测试4通过: 3个订阅者全部收到事件")
     }
     
-    // MARK: - 测试5: 队列分发
+    // MARK: - Test 5: Queue Dispatch
     private static func testQueueDispatch() {
-        print("\n🧪 Test 5: Queue Dispatch")
+        print("\n🧪 测试5: 队列分发")
         
         let bus = EventBus()
         let expectation = DispatchSemaphore(value: 0)
@@ -374,24 +374,24 @@ public final class EventBusTests {
             expectation.signal()
         }
         
-        // 在后台线程发射
+        // 在后台线程发送
         DispatchQueue.global().async {
             bus.emit(.moduleStarted, payload: ["moduleName": "QueueTest"])
         }
         
         let result = expectation.wait(timeout: .now() + 2)
         guard result == .success else {
-            fatalError("❌ Test 5 failed: Timeout waiting for async dispatch")
+            fatalError("❌ 测试5失败: 异步分发超时")
         }
         guard receivedOnMainThread else {
-            fatalError("❌ Test 5 failed: Event not dispatched to main thread")
+            fatalError("❌ 测试5失败: 事件未分发到主线程")
         }
-        print("✅ Test 5 passed: Event dispatched to specified queue")
+        print("✅ 测试5通过: 事件正确分发到指定队列")
     }
     
-    // MARK: - 测试6: 线程安全
+    // MARK: - Test 6: Thread Safety
     private static func testThreadSafety() {
-        print("\n🧪 Test 6: Thread Safety (100 concurrent subscriptions)")
+        print("\n🧪 测试6: 线程安全 (100个并发订阅)")
         
         let bus = EventBus()
         let group = DispatchGroup()
@@ -420,14 +420,14 @@ public final class EventBusTests {
         countLock.unlock()
         
         guard count == iterations else {
-            fatalError("❌ Test 6 failed: Expected \(iterations) events, got \(count)")
+            fatalError("❌ 测试6失败: 期望 \(iterations) 个事件，实际 \(count)")
         }
-        print("✅ Test 6 passed: \(iterations) concurrent subscriptions all received event")
+        print("✅ 测试6通过: \(iterations) 个并发订阅全部收到事件")
     }
     
-    // MARK: - 测试7: 所有预定义事件
+    // MARK: - Test 7: Predefined Events
     private static func testAllPredefinedEvents() {
-        print("\n🧪 Test 7: All Predefined Events")
+        print("\n🧪 测试7: 所有预定义事件")
         
         let bus = EventBus()
         var receivedEvents: [String] = []
@@ -455,20 +455,21 @@ public final class EventBusTests {
         ]
         
         guard receivedEvents == expected else {
-            fatalError("❌ Test 7 failed: Expected \(expected), got \(receivedEvents)")
+            fatalError("❌ 测试7失败: 期望 \(expected)，实际 \(receivedEvents)")
         }
-        print("✅ Test 7 passed: All 7 predefined events fired correctly")
+        print("✅ 测试7通过: 所有7个预定义事件正确发送")
     }
     
-    // MARK: - 测试8: 兼容 API（Notification.Name + userInfo）
+    // MARK: - 测试8: 兼容API
     private static func testCompatibleAPI() {
-        print("\n🧪 Test 8: Compatible Notification.Name API")
+        print("
+🧪 测试8: 兼容Notification.Name API")
         
         let bus = EventBus()
         var received = false
         var receivedPayload: [String: Any]?
         
-        // 使用类型安全 API 订阅，但用 Notification.Name 风格发布
+        // Subscribe via type-safe API, emit via Notification.Name
         let id = bus.on(.moduleDidLoad) { payload in
             received = true
             receivedPayload = payload
@@ -477,13 +478,13 @@ public final class EventBusTests {
         bus.emit(.moduleDidLoad, userInfo: ["moduleName": "CompatModule", "version": "2.0.0"])
         
         guard received else {
-            fatalError("❌ Test 8 failed: Compatible API subscriber did not receive event")
+            fatalError("❌ 测试8失败: 兼容API订阅者未收到事件")
         }
         guard let name = receivedPayload?["moduleName"] as? String, name == "CompatModule" else {
-            fatalError("❌ Test 8 failed: Compatible API payload incorrect")
+            fatalError("❌ 测试8失败: 兼容API载荷不正确")
         }
         
-        print("✅ Test 8 passed: Compatible Notification.Name API works correctly")
+        print("✅ 测试8通过: 兼容Notification.Name API工作正常")
         bus.off(id)
     }
 }

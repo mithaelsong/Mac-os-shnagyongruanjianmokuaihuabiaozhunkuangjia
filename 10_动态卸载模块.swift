@@ -1,4 +1,4 @@
-// Function 10: Dynamic Module Unloading
+// 功能10: 动态卸载模块
 // Description: Unload modules at runtime, release resources
 // Priority: P1
 
@@ -58,24 +58,24 @@ public final class ModuleUnloader {
     /// - Parameter name: Module name
     /// - Returns: Unload result
     public func unload(name: String) -> ModuleUnloadResult {
-        logger.info("Unloading module: \(name)")
+        logger.info("卸载模块: \(name)")
         
         // 1. Check if module is registered
         guard registry.isLoaded(name: name) else {
-            logger.warning("Module \(name) not loaded, cannot unload")
+            logger.warning("模块 \(name) 未加载，无法卸载")
             return .failure(.notLoaded(name: name))
         }
         
         // 2. Check XRZModule conformance
         guard let module = registry.getModule(named: name) as? XRZModule else {
-            logger.error("Module \(name) does not conform to XRZModule, cannot unload")
+            logger.error("模块 \(name) 不符合XRZModule协议，无法卸载")
             return .failure(.notConformingToProtocol(name: name))
         }
         
         // 3. Check for dependent modules
         let dependents = findDependents(of: name)
         if !dependents.isEmpty {
-            logger.warning("Module \(name) has dependents, cannot unload: \(dependents.joined(separator: ", "))")
+            logger.warning("模块 \(name) 有依赖模块，无法卸载: \(dependents.joined(separator: ", "))")
             return .failure(.hasDependents(module: name, dependents: dependents))
         }
         
@@ -85,16 +85,16 @@ public final class ModuleUnloader {
         // 5. Call stop()
         do {
             try module.stop()
-            logger.info("Module \(name) stop() succeeded")
+            logger.info("模块 \(name) stop()成功")
         } catch {
-            logger.error("Module \(name) stop() failed: \(error)")
+            logger.error("模块 \(name) stop()失败: \(error)")
             return .failure(.stopFailed(name: name, error: error))
         }
         
         // 6. Cleanup resources (if ModuleResourceReleasable is implemented)
         if let releasable = module as? ModuleResourceReleasable {
             releasable.releaseResources()
-            logger.info("Module \(name) resources released")
+            logger.info("模块 \(name) 资源已释放")
         }
         
         // 7. Remove from registry
@@ -106,7 +106,7 @@ public final class ModuleUnloader {
         // 9. Send unload event
         eventBus.emit(.moduleDidUnload, userInfo: ["moduleName": name])
         
-        logger.info("Module \(name) unloaded successfully")
+        logger.info("模块 \(name) 成功卸载")
         return .success
     }
     
@@ -119,27 +119,27 @@ public final class ModuleUnloader {
     /// - Parameter name: Module name
     /// - Returns: Unload result
     public func forceUnload(name: String) -> ModuleUnloadResult {
-        logger.warning("⚠️ Force unloading: \(name) (stop() will be skipped)")
+        logger.warning("⚠️ 强制卸载: \(name) (跳过stop())")
         
         // 1. Check if module is registered
         guard registry.isLoaded(name: name) else {
-            logger.warning("Module \(name) not loaded, cannot force unload")
+            logger.warning("模块 \(name) 未加载，无法强制卸载")
             return .failure(.notLoaded(name: name))
         }
         
         // 2. Check XRZModule conformance
         guard let module = registry.getModule(named: name) as? XRZModule else {
-            logger.error("Module \(name) does not conform to XRZModule, cannot force unload")
+            logger.error("模块 \(name) 不符合XRZModule协议，无法强制卸载")
             return .failure(.notConformingToProtocol(name: name))
         }
         
         // 3. Force unload dependents first (recursive)
         let dependents = findDependents(of: name)
         for dependent in dependents {
-            logger.warning("Force unloading dependent: \(dependent)")
+            logger.warning("强制卸载依赖: \(dependent)")
             let result = forceUnload(name: dependent)
             if !result.isSuccess {
-                logger.error("Dependent module \(dependent) force unload failed, continuing with \(name)")
+                logger.error("依赖模块 \(dependent) 强制卸载失败，继续处理 \(name)")
             }
         }
         
@@ -152,7 +152,7 @@ public final class ModuleUnloader {
         // 5. Skip stop(), direct cleanup
         if let releasable = module as? ModuleResourceReleasable {
             releasable.releaseResources()
-            logger.info("Module \(name) resources force-released")
+            logger.info("模块 \(name) 资源已强制释放")
         }
         
         // 6. Remove from registry
@@ -167,7 +167,7 @@ public final class ModuleUnloader {
             "forceUnload": true
         ])
         
-        logger.warning("Module \(name) force unloaded (stop() not called)")
+        logger.warning("模块 \(name) 已强制卸载 (未调用stop())")
         return .success
     }
     
@@ -321,7 +321,7 @@ public enum ModuleUnloaderTests {
     
     /// Run all tests
     public static func runAllTests() {
-        print("=== ModuleUnloader Tests ===")
+        print("=== 功能10测试 ===")
         
         cleanupRegistry()
         testNormalUnload()
@@ -357,14 +357,14 @@ public enum ModuleUnloaderTests {
         testEventEmission()
         cleanupRegistry()
         
-        print("\n=== All ModuleUnloader Tests Passed ✅ ===")
+        print("\n=== 全部功能10测试通过 ✅ ===")
     }
     
     // MARK: - Test 1: Normal Unload
     
     /// Test normal unload: stop() -> cleanup -> unregister -> emit event
     public static func testNormalUnload() {
-        print("\n🧪 Test 1: Normal Unload")
+        print("\n🧪 测试1: 正常卸载")
         
         let registry = ModuleRegistry.shared
         let eventBus = EventBus()
@@ -386,29 +386,29 @@ public enum ModuleUnloaderTests {
         let result = unloader.unload(name: "NormalModule")
         
         guard case .success = result else {
-            fatalError("❌ Test 1 failed: Expected success, got \(result)")
+            fatalError("❌ 测试1失败: 期望成功，实际 \(result)")
         }
         guard !registry.isLoaded(name: "NormalModule") else {
-            fatalError("❌ Test 1 failed: Module should be removed from registry")
+            fatalError("❌ 测试1失败: 模块应从注册表中移除")
         }
         guard module.isStopped else {
-            fatalError("❌ Test 1 failed: stop() should be called")
+            fatalError("❌ 测试1失败: 应调用stop()")
         }
         guard module.resourcesReleased else {
-            fatalError("❌ Test 1 failed: releaseResources() should be called")
+            fatalError("❌ 测试1失败: 应调用releaseResources()")
         }
         guard unloader.isUnloaded(name: "NormalModule") else {
-            fatalError("❌ Test 1 failed: Module should be marked unloaded")
+            fatalError("❌ 测试1失败: 模块应标记为已卸载")
         }
         
-        print("✅ Test 1 passed: Normal unload workflow correct")
+        print("✅ 测试1通过: 正常卸载流程正确")
     }
     
     // MARK: - Test 2: Force Unload
     
     /// Test force unload: skip stop(), direct cleanup
     public static func testForceUnload() {
-        print("\n🧪 Test 2: Force Unload")
+        print("\n🧪 测试2: 强制卸载")
         
         let registry = ModuleRegistry.shared
         let eventBus = EventBus()
@@ -430,26 +430,26 @@ public enum ModuleUnloaderTests {
         let result = unloader.forceUnload(name: "ForceModule")
         
         guard case .success = result else {
-            fatalError("❌ Test 2 failed: Expected force unload success, got \(result)")
+            fatalError("❌ 测试2失败: 期望强制卸载成功，实际 \(result)")
         }
         guard !registry.isLoaded(name: "ForceModule") else {
-            fatalError("❌ Test 2 failed: Module should be removed")
+            fatalError("❌ 测试2失败: 模块应已移除")
         }
         guard !module.isStopped else {
-            fatalError("❌ Test 2 failed: Force unload should not call stop()")
+            fatalError("❌ 测试2失败: 强制卸载不应调用stop()")
         }
         guard module.resourcesReleased else {
-            fatalError("❌ Test 2 failed: Force unload should release resources")
+            fatalError("❌ 测试2失败: 强制卸载应释放资源")
         }
         
-        print("✅ Test 2 passed: Force unload skips stop(), direct cleanup")
+        print("✅ 测试2通过: 强制卸载跳过stop()，直接清理")
     }
     
     // MARK: - Test 3: Dependent Refusal
     
     /// Test refusal when module has dependents
     public static func testDependentRefusal() {
-        print("\n🧪 Test 3: Dependent Refusal")
+        print("\n🧪 测试3: 依赖检查拒绝")
         
         let registry = ModuleRegistry.shared
         let eventBus = EventBus()
@@ -484,29 +484,29 @@ public enum ModuleUnloaderTests {
         let result = unloader.unload(name: "CoreModule")
         
         guard case .failure(.hasDependents(let module, let dependents)) = result else {
-            fatalError("❌ Test 3 failed: Expected hasDependents, got \(result)")
+            fatalError("❌ 测试3失败: 期望hasDependents，实际 \(result)")
         }
         guard module == "CoreModule" else {
-            fatalError("❌ Test 3 failed: Module name mismatch")
+            fatalError("❌ 测试3失败: 模块名称不匹配")
         }
         guard dependents == ["DependentModule"] else {
-            fatalError("❌ Test 3 failed: Dependents expected [DependentModule], got \(dependents)")
+            fatalError("❌ 测试3失败: 依赖期望[DependentModule]，实际 \(dependents)")
         }
         guard registry.isLoaded(name: "CoreModule") else {
-            fatalError("❌ Test 3 failed: Core module should not be removed")
+            fatalError("❌ 测试3失败: 核心模块不应被移除")
         }
         guard coreModule.isStopped == false else {
-            fatalError("❌ Test 3 failed: stop() should not be called")
+            fatalError("❌ 测试3失败: 不应调用stop()")
         }
         
-        print("✅ Test 3 passed: Correctly refused unloading with dependents")
+        print("✅ 测试3通过: 正确拒绝带依赖的卸载")
     }
     
     // MARK: - Test 4: Not Loaded Module
     
     /// Test unloading a module that is not loaded
     public static func testNotLoadedModule() {
-        print("\n🧪 Test 4: Unload Not Loaded")
+        print("\n🧪 测试4: 卸载未加载模块")
         
         let registry = ModuleRegistry.shared
         let eventBus = EventBus()
@@ -515,20 +515,20 @@ public enum ModuleUnloaderTests {
         let result = unloader.unload(name: "GhostModule")
         
         guard case .failure(.notLoaded(let name)) = result else {
-            fatalError("❌ Test 4 failed: Expected notLoaded, got \(result)")
+            fatalError("❌ 测试4失败: 期望notLoaded，实际 \(result)")
         }
         guard name == "GhostModule" else {
-            fatalError("❌ Test 4 failed: Module name mismatch")
+            fatalError("❌ 测试4失败: 模块名称不匹配")
         }
         
-        print("✅ Test 4 passed: Not loaded module correctly refused")
+        print("✅ 测试4通过: 未加载模块正确拒绝")
     }
     
     // MARK: - Test 5: stop() Failure
     
     /// Test handling of stop() throwing an error
     public static func testStopFailure() {
-        print("\n🧪 Test 5: stop() Failure")
+        print("\n🧪 测试5: stop()失败")
         
         let registry = ModuleRegistry.shared
         let eventBus = EventBus()
@@ -551,23 +551,23 @@ public enum ModuleUnloaderTests {
         let result = unloader.unload(name: "FailStopModule")
         
         guard case .failure(.stopFailed(let name, _)) = result else {
-            fatalError("❌ Test 5 failed: Expected stopFailed, got \(result)")
+            fatalError("❌ 测试5失败: 期望stopFailed，实际 \(result)")
         }
         guard name == "FailStopModule" else {
-            fatalError("❌ Test 5 failed: Module name mismatch")
+            fatalError("❌ 测试5失败: 模块名称不匹配")
         }
         guard registry.isLoaded(name: "FailStopModule") else {
-            fatalError("❌ Test 5 failed: Module should not be removed on stop failure")
+            fatalError("❌ 测试5失败: stop失败时不应移除模块")
         }
         
-        print("✅ Test 5 passed: stop() failure rolls back correctly, module not removed")
+        print("✅ 测试5通过: stop()失败正确回滚，模块未移除")
     }
     
     // MARK: - Test 6: Non-conforming Module
     
     /// Test unloading a module without XRZModule conformance
     public static func testNonConformingModule() {
-        print("\n🧪 Test 6: Non-conforming Module")
+        print("\n🧪 测试6: 非兼容模块")
         
         let registry = ModuleRegistry.shared
         let eventBus = EventBus()
@@ -579,20 +579,20 @@ public enum ModuleUnloaderTests {
         let result = unloader.unload(name: "NonConformingModule")
         
         guard case .failure(.notConformingToProtocol(let name)) = result else {
-            fatalError("❌ Test 6 failed: Expected notConformingToProtocol, got \(result)")
+            fatalError("❌ 测试6失败: 期望notConformingToProtocol，实际 \(result)")
         }
         guard name == "NonConformingModule" else {
-            fatalError("❌ Test 6 failed: Module name mismatch")
+            fatalError("❌ 测试6失败: 模块名称不匹配")
         }
         
-        print("✅ Test 6 passed: Non-conforming module correctly refused")
+        print("✅ 测试6通过: 非兼容模块正确拒绝")
     }
     
     // MARK: - Test 7: Resource Release
     
     /// Test module without ModuleResourceReleasable can still unload
     public static func testResourceRelease() {
-        print("\n🧪 Test 7: No Resource Release Protocol")
+        print("\n🧪 测试7: 无资源释放协议")
         
         let registry = ModuleRegistry.shared
         let eventBus = EventBus()
@@ -614,23 +614,23 @@ public enum ModuleUnloaderTests {
         let result = unloader.unload(name: "SimpleModule")
         
         guard case .success = result else {
-            fatalError("❌ Test 7 failed: Expected success, got \(result)")
+            fatalError("❌ 测试7失败: 期望成功，实际 \(result)")
         }
         guard !registry.isLoaded(name: "SimpleModule") else {
-            fatalError("❌ Test 7 failed: Module should be removed")
+            fatalError("❌ 测试7失败: 模块应已移除")
         }
         guard module.isStopped else {
-            fatalError("❌ Test 7 failed: stop() should be called")
+            fatalError("❌ 测试7失败: 应调用stop()")
         }
         
-        print("✅ Test 7 passed: Module without resource release unloads normally")
+        print("✅ 测试7通过: 无资源释放的模块正常卸载")
     }
     
     // MARK: - Test 8: Can Unload Check
     
     /// Test canUnload method
     public static func testCanUnloadCheck() {
-        print("\n🧪 Test 8: Can Unload Check")
+        print("\n🧪 测试8: 可卸载检查")
         
         let registry = ModuleRegistry.shared
         let eventBus = EventBus()
@@ -639,7 +639,7 @@ public enum ModuleUnloaderTests {
         // Unregistered module
         let check1 = unloader.canUnload(name: "Missing")
         guard check1.canUnload == false, check1.reason?.contains("not loaded") == true else {
-            fatalError("❌ Test 8a failed: Unregistered module should not be unloadable")
+            fatalError("❌ 测试8a失败: 未注册模块不应可卸载")
         }
         
         // Registered module without dependents
@@ -657,7 +657,7 @@ public enum ModuleUnloaderTests {
         )
         let check2 = unloader.canUnload(name: "FreeModule")
         guard check2.canUnload == true, check2.reason == nil else {
-            fatalError("❌ Test 8b failed: Module without dependents should be unloadable")
+            fatalError("❌ 测试8b失败: 无依赖模块应可卸载")
         }
         
         // Module with dependents
@@ -675,17 +675,17 @@ public enum ModuleUnloaderTests {
         )
         let check3 = unloader.canUnload(name: "FreeModule")
         guard check3.canUnload == false, check3.reason?.contains("UserModule") == true else {
-            fatalError("❌ Test 8c failed: Module with dependents should not be unloadable")
+            fatalError("❌ 测试8c失败: 有依赖模块不应可卸载")
         }
         
-        print("✅ Test 8 passed: canUnload check correct")
+        print("✅ 测试8通过: canUnload检查正确")
     }
     
     // MARK: - Test 9: Multiple Dependents
     
     /// Test module depended on by multiple modules
     public static func testMultipleDependents() {
-        print("\n🧪 Test 9: Multiple Dependents")
+        print("\n🧪 测试9: 多个依赖")
         
         let registry = ModuleRegistry.shared
         let eventBus = EventBus()
@@ -731,28 +731,28 @@ public enum ModuleUnloaderTests {
         
         let dependents = unloader.findDependents(of: "Core")
         guard dependents.count == 2 else {
-            fatalError("❌ Test 9 failed: Expected 2 dependents, got \(dependents.count)")
+            fatalError("❌ 测试9失败: 期望2个依赖，实际 \(dependents.count)")
         }
         guard dependents.contains("UserA") && dependents.contains("UserB") else {
-            fatalError("❌ Test 9 failed: Dependents should include UserA and UserB")
+            fatalError("❌ 测试9失败: 依赖应包含UserA和UserB")
         }
         
         let result = unloader.unload(name: "Core")
         guard case .failure(.hasDependents(_, let deps)) = result else {
-            fatalError("❌ Test 9 failed: Expected hasDependents")
+            fatalError("❌ 测试9失败: 期望hasDependents")
         }
         guard deps.count == 2 else {
-            fatalError("❌ Test 9 failed: Dependents should have 2 elements")
+            fatalError("❌ 测试9失败: 依赖应有2个元素")
         }
         
-        print("✅ Test 9 passed: Multiple dependents detection correct")
+        print("✅ 测试9通过: 多个依赖检测正确")
     }
     
     // MARK: - Test 10: Force Unload with Dependents
     
     /// Test force unload recursively unloads dependents
     public static func testForceUnloadWithDependents() {
-        print("\n🧪 Test 10: Force Unload with Dependents")
+        print("\n🧪 测试10: 强制卸载带依赖")
         
         let registry = ModuleRegistry.shared
         let eventBus = EventBus()
@@ -787,35 +787,35 @@ public enum ModuleUnloaderTests {
         let result = unloader.forceUnload(name: "CoreF")
         
         guard case .success = result else {
-            fatalError("❌ Test 10 failed: Expected success, got \(result)")
+            fatalError("❌ 测试10失败: 期望成功，实际 \(result)")
         }
         guard !registry.isLoaded(name: "CoreF") else {
-            fatalError("❌ Test 10 failed: CoreF should be removed")
+            fatalError("❌ 测试10失败: CoreF应已移除")
         }
         guard !registry.isLoaded(name: "UserF") else {
-            fatalError("❌ Test 10 failed: UserF should also be removed")
+            fatalError("❌ 测试10失败: UserF也应已移除")
         }
         guard !core.isStopped else {
-            fatalError("❌ Test 10 failed: CoreF stop() not called (force unload)")
+            fatalError("❌ 测试10失败: CoreF stop()未调用(强制卸载)")
         }
         guard !user.isStopped else {
-            fatalError("❌ Test 10 failed: UserF stop() not called (force unload)")
+            fatalError("❌ 测试10失败: UserF stop()未调用(强制卸载)")
         }
         guard core.resourcesReleased else {
-            fatalError("❌ Test 10 failed: CoreF resources should be released")
+            fatalError("❌ 测试10失败: CoreF资源应已释放")
         }
         guard user.resourcesReleased else {
-            fatalError("❌ Test 10 failed: UserF resources should be released")
+            fatalError("❌ 测试10失败: UserF资源应已释放")
         }
         
-        print("✅ Test 10 passed: Force unload recursively removes dependents")
+        print("✅ 测试10通过: 强制卸载递归移除依赖")
     }
     
     // MARK: - Test 11: Event Emission
     
     /// Test event emission during unload
     public static func testEventEmission() {
-        print("\n🧪 Test 11: Event Emission")
+        print("\n🧪 测试11: 事件发送")
         
         let registry = ModuleRegistry.shared
         let eventBus = EventBus()
@@ -852,24 +852,24 @@ public enum ModuleUnloaderTests {
         let result = unloader.unload(name: "EventModule")
         
         guard case .success = result else {
-            fatalError("❌ Test 11 failed: Expected success")
+            fatalError("❌ 测试11失败: 期望成功")
         }
         guard willUnloadReceived else {
-            fatalError("❌ Test 11 failed: moduleWillUnload not received")
+            fatalError("❌ 测试11失败: moduleWillUnload未收到")
         }
         guard didUnloadReceived else {
-            fatalError("❌ Test 11 failed: moduleDidUnload not received")
+            fatalError("❌ 测试11失败: moduleDidUnload未收到")
         }
         guard willUnloadModuleName == "EventModule" else {
-            fatalError("❌ Test 11 failed: moduleWillUnload name mismatch")
+            fatalError("❌ 测试11失败: moduleWillUnload名称不匹配")
         }
         guard didUnloadModuleName == "EventModule" else {
-            fatalError("❌ Test 11 failed: moduleDidUnload name mismatch")
+            fatalError("❌ 测试11失败: moduleDidUnload名称不匹配")
         }
         
         eventBus.off(obs1)
         eventBus.off(obs2)
         
-        print("✅ Test 11 passed: Unload events emitted correctly")
+        print("✅ 测试11通过: 卸载事件正确发送")
     }
 }

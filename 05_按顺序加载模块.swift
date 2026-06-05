@@ -400,7 +400,7 @@ public enum ModuleLoaderTests {
 
     // MARK: - 运行所有测试
     public static func runAllTests() {
-        print("=== ModuleLoader Tests ===")
+        print("=== 功能5测试 ===")
 
         // 重置配置系统，确保测试环境干净
         ConfigSystem.shared.resetForTests()
@@ -410,12 +410,12 @@ public enum ModuleLoaderTests {
         testLoadFailureHandling()
         testUnloadFunction()
 
-        print("\n=== All ModuleLoader Tests Passed ✅ ===")
+        print("\n=== 全部功能5测试通过 ✅ ===")
     }
 
     // MARK: - 测试1: 正常依赖加载顺序（拓扑排序）
     public static func testTopologicalSort() {
-        print("\n🧪 Test 1: Topological Sort (Dependency Order)")
+        print("\n🧪 测试1: 拓扑排序(依赖顺序)")
 
         // 构造模块依赖链: C <- B <- A (A 依赖 B, B 依赖 C)
         let moduleC = ScannedModule(
@@ -470,22 +470,22 @@ public enum ModuleLoaderTests {
             guard let indexA = names.firstIndex(of: "ModuleA"),
                   let indexB = names.firstIndex(of: "ModuleB"),
                   let indexC = names.firstIndex(of: "ModuleC") else {
-                fatalError("❌ Test 1 failed: Missing modules in sorted result")
+                fatalError("❌ 测试1失败: 排序结果中缺少模块")
             }
 
             guard indexC < indexB && indexB < indexA else {
-                fatalError("❌ Test 1 failed: Wrong load order. Expected C before B before A, got \(names)")
+                fatalError("❌ 测试1失败: 加载顺序错误。期望C在B前B在A前，实际 \(names)")
             }
 
-            print("✅ Test 1 passed: Load order is \(names.joined(separator: " -> "))")
+            print("✅ 测试1通过: 加载顺序为 \(names.joined(separator: " -> "))")
         } catch {
-            fatalError("❌ Test 1 failed: Unexpected error: \(error)")
+            fatalError("❌ 测试1失败: 意外错误: \(error)")
         }
     }
 
     // MARK: - 测试2: 循环依赖检测
     public static func testCircularDependencyDetection() {
-        print("\n🧪 Test 2: Circular Dependency Detection")
+        print("\n🧪 测试2: 循环依赖检测")
 
         let moduleA = ScannedModule(
             path: URL(fileURLWithPath: "/tmp/A"),
@@ -519,21 +519,21 @@ public enum ModuleLoaderTests {
 
         do {
             _ = try DependencyResolver.resolveLoadOrder(modules: modules)
-            fatalError("❌ Test 2 failed: Should have detected circular dependency")
+            fatalError("❌ 测试2失败: 应检测到循环依赖")
         } catch DependencyResolverError.circularDependency(let path) {
             let pathStr = path.joined(separator: " -> ")
             guard path.contains("ModuleA") && path.contains("ModuleB") else {
-                fatalError("❌ Test 2 failed: Cycle path doesn't contain expected modules: \(pathStr)")
+                fatalError("❌ 测试2失败: 循环路径不包含预期模块: \(pathStr)")
             }
-            print("✅ Test 2 passed: Circular dependency detected: \(pathStr)")
+            print("✅ 测试2通过: 循环依赖已检测: \(pathStr)")
         } catch {
-            fatalError("❌ Test 2 failed: Unexpected error type: \(error)")
+            fatalError("❌ 测试2失败: 意外错误类型: \(error)")
         }
     }
 
     // MARK: - 测试3: 加载失败处理
     public static func testLoadFailureHandling() {
-        print("\n🧪 Test 3: Load Failure Handling")
+        print("\n🧪 测试3: 加载失败处理")
 
         let registry = ModuleRegistry()
         let eventBus = EventBus()
@@ -566,11 +566,11 @@ public enum ModuleLoaderTests {
         switch result1 {
         case .failure(.dependencyMissing(let module, let dependency)):
             guard module == "DepTestModule" && dependency == "MissingDep" else {
-                fatalError("❌ Test 3a failed: Wrong dependency error details")
+                fatalError("❌ 测试3a失败: 依赖错误详情不正确")
             }
-            print("✅ Test 3a passed: Dependency missing detected (\(module) needs \(dependency))")
+            print("✅ 测试3a通过: 依赖缺失已检测 (\(module) needs \(dependency))")
         default:
-            fatalError("❌ Test 3a failed: Expected dependencyMissing, got \(result1)")
+            fatalError("❌ 测试3a失败: 期望dependencyMissing，实际 \(result1)")
         }
 
         // ---- 3b: 测试模块已加载 ----
@@ -602,11 +602,11 @@ public enum ModuleLoaderTests {
         switch result2 {
         case .failure(.alreadyLoaded(let name)):
             guard name == "LoadedTestModule" else {
-                fatalError("❌ Test 3b failed: Wrong alreadyLoaded name")
+                fatalError("❌ 测试3b失败: alreadyLoaded名称不正确")
             }
-            print("✅ Test 3b passed: Already loaded detected (\(name))")
+            print("✅ 测试3b通过: 已加载检测 (\(name))")
         default:
-            fatalError("❌ Test 3b failed: Expected alreadyLoaded, got \(result2)")
+            fatalError("❌ 测试3b失败: 期望alreadyLoaded，实际 \(result2)")
         }
 
         // ---- 3c: 测试配置禁用 ----
@@ -635,11 +635,11 @@ public enum ModuleLoaderTests {
         switch result3 {
         case .failure(.loadFailed(let name, let reason)):
             guard name == "DisabledTestModule", reason == "Disabled in config" else {
-                fatalError("❌ Test 3c failed: Wrong loadFailed details")
+                fatalError("❌ 测试3c失败: loadFailed详情不正确")
             }
-            print("✅ Test 3c passed: Disabled module skipped (\(name): \(reason))")
+            print("✅ 测试3c通过: 禁用模块已跳过 (\(name): \(reason))")
         default:
-            fatalError("❌ Test 3c failed: Expected loadFailed, got \(result3)")
+            fatalError("❌ 测试3c失败: 期望loadFailed，实际 \(result3)")
         }
 
         // 清理
@@ -650,7 +650,7 @@ public enum ModuleLoaderTests {
 
     // MARK: - 测试4: 卸载功能
     public static func testUnloadFunction() {
-        print("\n🧪 Test 4: Unload Function")
+        print("\n🧪 测试4: 卸载功能")
 
         let registry = ModuleRegistry()
         let eventBus = EventBus()
@@ -661,25 +661,25 @@ public enum ModuleLoaderTests {
         let mockModule = MockModule()
         registry.register(module: mockModule, name: "UnloadTestModule")
         guard registry.isLoaded(name: "UnloadTestModule") else {
-            fatalError("❌ Test 4 setup failed: Module not registered")
+            fatalError("❌ 测试4准备失败: 模块未注册")
         }
 
         // 卸载
         loader.unload(name: "UnloadTestModule")
 
         guard !registry.isLoaded(name: "UnloadTestModule") else {
-            fatalError("❌ Test 4a failed: Module still loaded after unload")
+            fatalError("❌ 测试4a失败: 卸载后模块仍加载")
         }
-        print("✅ Test 4a passed: Module unloaded successfully")
+        print("✅ 测试4a通过: 模块卸载成功")
 
         // 验证 stop() 被调用
         guard mockModule.isStopped else {
-            fatalError("❌ Test 4b failed: Module stop() was not called")
+            fatalError("❌ 测试4b失败: 未调用模块stop()")
         }
-        print("✅ Test 4b passed: Module stop() called during unload")
+        print("✅ 测试4b通过: 卸载时调用模块stop()")
 
         // 测试卸载不存在的模块（不应崩溃）
         loader.unload(name: "NonExistentModule")
-        print("✅ Test 4c passed: Unloading non-existent module handled gracefully")
+        print("✅ 测试4c通过: 卸载不存在模块优雅处理")
     }
 }

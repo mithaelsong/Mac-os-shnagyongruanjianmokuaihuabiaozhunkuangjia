@@ -344,12 +344,13 @@ public final class LogSystemTests {
         testOldLogCleanup()
         testFlushOnTerminate()
         testLockConsistency()
-        print("\n🎉 All log system tests completed!")
+        print("
+=== 全部日志系统测试通过 ✅ ===")
     }
     
     /// 测试1: 基本日志写入和文件生成
     public static func testBasicLogging() {
-        print("\n🧪 Test 1: Basic Logging")
+        print("\n🧪 测试1: 基本日志记录")
         
         LogSystem.shared.initialize()
         let logger = ModuleLogger(category: "TestBasic")
@@ -363,21 +364,21 @@ public final class LogSystemTests {
         LogSystem.shared.flush()
         
         guard let logDir = LogSystem.shared.logDirectory() else {
-            fatalError("❌ Test 1 failed: logDirectory returned nil")
+            fatalError("❌ 测试1失败: logDirectory返回nil")
         }
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         let todayFile = logDir.appendingPathComponent("log_\(formatter.string(from: Date())).txt")
         guard FileManager.default.fileExists(atPath: todayFile.path) else {
-            fatalError("❌ Test 1 failed: Log file not found at \(todayFile.path)")
+            fatalError("❌ 测试1失败: 日志文件未找到于 \(todayFile.path)")
         }
         
-        print("✅ Test 1 passed: Log file created at \(todayFile.path)")
+        print("✅ 测试1通过: 日志文件已创建于 \(todayFile.path)")
     }
     
     /// 测试2: 多线程并发日志写入
     public static func testMultithreadedLogging() {
-        print("\n🧪 Test 2: Multithreaded Logging")
+        print("\n🧪 测试2: 多线程日志写入")
         
         let group = DispatchGroup()
         let threadCount = 50
@@ -396,12 +397,12 @@ public final class LogSystemTests {
         group.wait()
         LogSystem.shared.flush()
         
-        print("✅ Test 2 passed: \(threadCount * logsPerThread) logs written from \(threadCount) threads without deadlock")
+        print("✅ 测试2通过: \(threadCount * logsPerThread) logs written from \(threadCount) threads without deadlock")
     }
     
     /// 测试3: 日志级别过滤
     public static func testLogLevelFiltering() {
-        print("\n🧪 Test 3: Log Level Filtering")
+        print("\n🧪 测试3: 日志级别过滤")
         
         LogSystem.shared.setMinimumLevel(.warning)
         let logger = ModuleLogger(category: "TestFilter")
@@ -415,16 +416,16 @@ public final class LogSystemTests {
         
         let currentLevel = LogSystem.shared.getMinimumLevel()
         guard currentLevel == .warning else {
-            fatalError("❌ Test 3 failed: expected warning, got \(currentLevel)")
+            fatalError("❌ 测试3失败: 期望warning，实际 \(currentLevel)")
         }
         
         LogSystem.shared.setMinimumLevel(.info)
-        print("✅ Test 3 passed: Level filtering works")
+        print("✅ 测试3通过: 级别过滤生效")
     }
     
     /// 测试4: 旧日志文件自动清理（7天）
     public static func testOldLogCleanup() {
-        print("\n🧪 Test 4: Old Log Cleanup (7 days)")
+        print("\n🧪 测试4: 旧日志清理(7天)")
         
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("LogTest_\(UUID().uuidString)")
@@ -432,14 +433,14 @@ public final class LogSystemTests {
         
         let oldFile = tempDir.appendingPathComponent("log_2000-01-01.txt")
         guard FileManager.default.createFile(atPath: oldFile.path, contents: Data("old".utf8)) else {
-            fatalError("❌ Test 4 failed: cannot create old log")
+            fatalError("❌ 测试4失败: 无法创建旧日志")
         }
         
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         let todayFile = tempDir.appendingPathComponent("log_\(formatter.string(from: Date())).txt")
         guard FileManager.default.createFile(atPath: todayFile.path, contents: Data("today".utf8)) else {
-            fatalError("❌ Test 4 failed: cannot create today log")
+            fatalError("❌ 测试4失败: 无法创建今日日志")
         }
         
         let output = FileLogOutput(directory: tempDir)
@@ -454,16 +455,16 @@ public final class LogSystemTests {
         let oldExists = FileManager.default.fileExists(atPath: oldFile.path)
         let newExists = FileManager.default.fileExists(atPath: todayFile.path)
         guard !oldExists && newExists else {
-            fatalError("❌ Test 4 failed: old=\(oldExists) new=\(newExists)")
+            fatalError("❌ 测试4失败: old=\(oldExists) new=\(newExists)")
         }
         
-        print("✅ Test 4 passed: Old log deleted, today's log preserved")
+        print("✅ 测试4通过: 旧日志已删除，今日日志保留")
         try? FileManager.default.removeItem(at: tempDir)
     }
     
     /// 测试5: 验证 flush() 不会死锁
     public static func testFlushOnTerminate() {
-        print("\n🧪 Test 5: Flush on Terminate")
+        print("\n🧪 测试5: 终止时刷新")
         
         LogSystem.shared.initialize()
         let logger = ModuleLogger(category: "TestFlush")
@@ -471,12 +472,12 @@ public final class LogSystemTests {
         logger.info("Message before flush")
         LogSystem.shared.flush()
         
-        print("✅ Test 5 passed: flush() completed without deadlock")
+        print("✅ 测试5通过: flush()完成无死锁")
     }
     
     /// 测试6: 验证锁一致性（FileLogOutput 使用 os_unfair_lock）
     public static func testLockConsistency() {
-        print("\n🧪 Test 6: Lock Consistency")
+        print("\n🧪 测试6: 锁一致性")
         
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("LogTest_Lock_\(UUID().uuidString)")
@@ -501,6 +502,6 @@ public final class LogSystemTests {
         output.flush()
         
         try? FileManager.default.removeItem(at: tempDir)
-        print("✅ Test 6 passed: \(iterations) concurrent writes with os_unfair_lock without crash")
+        print("✅ 测试6通过: \(iterations) concurrent writes with os_unfair_lock without crash")
     }
 }

@@ -1,12 +1,12 @@
 // 功能11: 获取模块实例
-// 对应: 安全的模块实例访问
-// 优先级: P0
+// Purpose: Safe module instance access
+// Priority: P0
 
 import Foundation
-import os.lock
+import os
 
-// MARK: - ModuleAccessor 错误
-/// 模块访问器操作中可能发生的错误
+// MARK: - ModuleAccessor Error
+/// Errors that can occur during module accessor operations
 public enum ModuleAccessorError: Error, CustomStringConvertible {
     case moduleNotLoaded(name: String)
     case serviceNotFound(module: String, service: String)
@@ -15,25 +15,25 @@ public enum ModuleAccessorError: Error, CustomStringConvertible {
     public var description: String {
         switch self {
         case .moduleNotLoaded(let name):
-            return "模块未加载: \(name)"
+            return "Module not loaded: \(name)"
         case .serviceNotFound(let module, let service):
-            return "模块 \(module) 未提供服务: \(service)"
+            return "Module \(module) does not provide service: \(service)"
         case .typeMismatch(let expected, let actual):
-            return "类型不匹配: 期望 \(expected), 实际 \(actual)"
+            return "Type mismatch: expected \(expected), actual \(actual)"
         }
     }
 }
 
 // MARK: - ModuleAccessor
-/// 模块访问器 (功能11)
-/// 提供安全的模块实例访问，是其他模块获取模块实例和服务的统一入口
-/// 特性:
-/// - 通过 ModuleRegistry 获取模块实例
-/// - 通过 ModuleStarter 检查启动状态
-/// - 通过 ServiceRegistry 获取模块提供的服务（框架推荐方式）
-/// - 类型安全的泛型获取方法
-/// - 线程安全（os_unfair_lock 保护）
-/// - 使用 ModuleLogger 记录所有访问操作
+/// Module Accessor (Function 11)
+/// Provides safe module instance access as the unified entry point
+/// Features:
+/// - Get module instances via ModuleRegistry
+/// - Check start status via ModuleStarter
+/// - Get module services via ServiceRegistry (recommended)
+/// - Type-safe generic access methods
+/// - Thread-safe (protected by os_unfair_lock)
+/// - Logs access operations via ModuleLogger
 public final class ModuleAccessor: Sendable {
     public static let shared = ModuleAccessor()
 
@@ -41,14 +41,14 @@ public final class ModuleAccessor: Sendable {
     private let starter: ModuleStarter
     private let logger: ModuleLogger
 
-    /// 线程安全锁
+    /// Thread-safety lock
     private final class LockStorage: @unchecked Sendable {
         var lock = os_unfair_lock()
     }
 
     private let lockStorage = LockStorage()
 
-    /// 私有初始化，使用共享实例
+    /// Private initializer using shared instance
     private init() {
         self.registry = ModuleRegistry.shared
         self.starter = ModuleStarter(
@@ -58,183 +58,183 @@ public final class ModuleAccessor: Sendable {
         self.logger = ModuleLogger(category: "ModuleAccessor")
     }
 
-    /// 支持注入的初始化（用于测试或自定义场景）
+    /// Injectable initializer (for testing or custom scenarios)
     /// - Parameters:
-    ///   - registry: 模块注册表
-    ///   - starter: 模块启动器
+    ///   - registry: Module registry
+    ///   - starter: Module starter
     public init(registry: ModuleRegistry, starter: ModuleStarter) {
         self.registry = registry
         self.starter = starter
         self.logger = ModuleLogger(category: "ModuleAccessor")
     }
 
-    // MARK: - 获取模块实例
+    // MARK: - Getting Module Instance
 
-    /// 获取指定名称的模块实例
-    /// - Parameter name: 模块名称
-    /// - Returns: 模块实例，如果不存在返回 nil
+    /// Get module instance by name
+    /// - Parameter name: Module name
+    /// - Returns: Module instance, or nil if not found
     public func getModule(_ name: String) -> Any? {
         os_unfair_lock_lock(&lockStorage.lock)
         defer { os_unfair_lock_unlock(&lockStorage.lock) }
 
-        logger.debug("获取模块实例: \(name)")
+        logger.debug("Getting module: \(name)")
         return registry.getModule(named: name)
     }
 
-    // MARK: - 类型安全获取模块
+    // MARK: - Type-Safe Module Access
 
-    /// 类型安全地获取指定名称的模块实例
-    /// - Parameter name: 模块名称
-    /// - Returns: 类型匹配后的模块实例，如果不存在或类型不匹配返回 nil
+    /// Type-safely get module instance by name
+    /// - Parameter name: Module name
+    /// - Returns: Typed module instance, or nil if not found or type mismatch
     public func getModuleAs<T>(_ name: String) -> T? {
         os_unfair_lock_lock(&lockStorage.lock)
         defer { os_unfair_lock_unlock(&lockStorage.lock) }
 
-        logger.debug("类型安全获取模块: \(name) as \(String(describing: T.self))")
+        logger.debug("Type-safe get module: \(name) as \(String(describing: T.self))")
 
         guard let module = registry.getModule(named: name) else {
-            logger.warning("模块 \(name) 未加载，无法获取")
+            logger.warning("Module \(name) not loaded, cannot get")
             return nil
         }
 
         guard let typed = module as? T else {
-            logger.error("模块 \(name) 类型不匹配: 期望 \(String(describing: T.self)), 实际 \(type(of: module))")
+            logger.error("Module \(name) type mismatch: expected \(String(describing: T.self)), actual \(type(of: module))")
             return nil
         }
 
         return typed
     }
 
-    // MARK: - 获取服务
+    // MARK: - Getting Services
 
-    /// 获取指定模块提供的指定服务
-    /// 通过 ServiceRegistry 查找服务实例（模块在 start() 中通过 registerService 注册）
+    /// Get a service provided by a module
+    /// Find service via ServiceRegistry (registered in start() via registerService)
     /// - Parameters:
-    ///   - module: 模块名称
-    ///   - service: 服务名称
-    /// - Returns: 服务实例，如果不存在或模块未加载返回 nil
+    ///   - module: Module name
+    ///   - service: Service name
+    /// - Returns: Service instance, or nil if not found or module not loaded
     public func getService(_ module: String, _ service: String) -> Any? {
         os_unfair_lock_lock(&lockStorage.lock)
         defer { os_unfair_lock_unlock(&lockStorage.lock) }
 
-        logger.debug("获取服务: \(module).\(service)")
+        logger.debug("Getting service: \(module).\(service)")
 
-        // 检查模块是否已加载
+        // Check if module is loaded
         guard registry.isLoaded(name: module) else {
-            logger.warning("无法获取服务 \(module).\(service): 模块未加载")
+            logger.warning("Cannot get service \(module).\(service): module not loaded")
             return nil
         }
 
-        // 通过 ServiceRegistry 获取（Any.self 用于获取任意类型实例）
+        // Get via ServiceRegistry (Any.self for untyped access)
         let result = ServiceRegistry.shared.resolve(
             moduleName: module,
             serviceName: service,
-            type: Any.self
+            protocolType: Any.self
         )
 
         if result == nil {
-            logger.warning("服务 \(module).\(service) 未找到")
+            logger.warning("Service \(module).\(service) not found")
         } else {
-            logger.debug("获取到服务 \(module).\(service)")
+            logger.debug("Got service \(module).\(service)")
         }
 
         return result
     }
 
-    // MARK: - 类型安全获取服务
+    // MARK: - Type-Safe Service Access
 
-    /// 类型安全地获取指定模块提供的指定服务
+    /// Type-safely get a service from a module
     /// - Parameters:
-    ///   - module: 模块名称
-    ///   - service: 服务名称
-    /// - Returns: 类型匹配后的服务实例，如果不存在、类型不匹配或模块未加载返回 nil
+    ///   - module: Module name
+    ///   - service: Service name
+    /// - Returns: Typed service instance, or nil if not found/type mismatch/module not loaded
     public func getModuleService<T>(_ module: String, _ service: String) -> T? {
         os_unfair_lock_lock(&lockStorage.lock)
         defer { os_unfair_lock_unlock(&lockStorage.lock) }
 
-        logger.debug("类型安全获取服务: \(module).\(service) as \(String(describing: T.self))")
+        logger.debug("Type-safe get service: \(module).\(service) as \(String(describing: T.self))")
 
-        // 检查模块是否已加载
+        // Check if module is loaded
         guard registry.isLoaded(name: module) else {
-            logger.warning("无法获取服务 \(module).\(service): 模块未加载")
+            logger.warning("Cannot get service \(module).\(service): module not loaded")
             return nil
         }
 
-        // 通过 ServiceRegistry 类型安全获取
+        // Get via ServiceRegistry type-safe
         let result: T? = ServiceRegistry.shared.resolve(
             moduleName: module,
             serviceName: service,
-            type: T.self
+            protocolType: T.self
         )
 
         if result == nil {
-            logger.warning("类型安全服务 \(module).\(service) as \(String(describing: T.self)) 未找到")
+            logger.warning("Type-safe service \(module).\(service) as \(String(describing: T.self)) not found")
         } else {
-            logger.debug("获取到类型安全服务 \(module).\(service)")
+            logger.debug("Got type-safe service \(module).\(service)")
         }
 
         return result
     }
 
-    // MARK: - 检查加载状态
+    // MARK: - Status Check
 
-    /// 检查指定模块是否已加载到注册表
-    /// - Parameter name: 模块名称
-    /// - Returns: 是否已加载
+    /// Check if module is loaded in registry
+    /// - Parameter name: Module name
+    /// - Returns: Whether loaded
     public func isModuleLoaded(_ name: String) -> Bool {
         os_unfair_lock_lock(&lockStorage.lock)
         defer { os_unfair_lock_unlock(&lockStorage.lock) }
 
         let loaded = registry.isLoaded(name: name)
-        logger.debug("检查模块加载状态: \(name) = \(loaded)")
+        logger.debug("Check module loaded: \(name) = \(loaded)")
         return loaded
     }
 
-    // MARK: - 检查启动状态
+    // MARK: - Start Status Check
 
-    /// 检查指定模块是否已启动
-    /// - Parameter name: 模块名称
-    /// - Returns: 是否已启动
+    /// Check if module has started
+    /// - Parameter name: Module name
+    /// - Returns: Whether started
     public func isModuleStarted(_ name: String) -> Bool {
         os_unfair_lock_lock(&lockStorage.lock)
         defer { os_unfair_lock_unlock(&lockStorage.lock) }
 
         let started = starter.isStarted(name)
-        logger.debug("检查模块启动状态: \(name) = \(started)")
+        logger.debug("Check module started: \(name) = \(started)")
         return started
     }
 }
 
-// MARK: - 测试代码
+// MARK: - Test Code
 
-/// ModuleAccessor 功能验证测试
-/// 运行方式：在单元测试或 Playground 中调用 `ModuleAccessorTests.runAllTests()`
+/// ModuleAccessor functional verification tests
+/// Run: `ModuleAccessorTests.runAllTests()` in unit tests or playground
 public enum ModuleAccessorTests {
 
-    // MARK: - 测试协议
+    // MARK: - Test Protocol
 
-    /// 模拟服务协议
+    /// Mock service protocol
     public protocol DataService {
         func fetch() -> String
     }
 
-    // MARK: - 测试模块
+    // MARK: - Test Modules
 
-    /// 实现生命周期协议和服务协议的测试模块
+    /// Module implementing both lifecycle and service protocols
     public final class MockDataModule: XRZModule, DataService {
         public func start() throws {}
         public func stop() throws {}
         public func fetch() -> String { "MockData" }
     }
 
-    /// 仅作为普通实例的测试模块（不实现 XRZModule）
+    /// Plain module (does not implement XRZModule)
     public final class MockPlainModule {
         public let value = 42
     }
 
-    // MARK: - 辅助方法
+    // MARK: - Helper Methods
 
-    /// 清理全局注册表和服务注册表中的所有测试数据
+    /// Clean all test data from registry and service registry
     private static func cleanup() {
         let registry = ModuleRegistry.shared
         let serviceRegistry = ServiceRegistry.shared
@@ -245,7 +245,7 @@ public enum ModuleAccessorTests {
         }
     }
 
-    /// 运行所有测试
+    /// Run all tests
     public static func runAllTests() {
         cleanup()
         testGetModule()
@@ -269,12 +269,12 @@ public enum ModuleAccessorTests {
         testThreadSafety()
         cleanup()
 
-        print("\n🎉 所有 ModuleAccessor 测试通过!")
+        print("\n=== 全部功能11测试通过 ✅ ===")
     }
 
-    // MARK: - 测试1: 获取模块实例
+    // MARK: - Test 1: Get Module Instance
 
-    /// 验证 getModule 能正确获取已加载模块，对未加载模块返回 nil
+    /// Verify getModule returns module for loaded and nil for unloaded
     public static func testGetModule() {
         print("\n🧪 测试1: 获取模块实例")
 
@@ -284,27 +284,27 @@ public enum ModuleAccessorTests {
         let module = MockDataModule()
         registry.register(module: module, name: "DataModule")
 
-        // 获取已加载模块
+        // Get loaded module
         guard let retrieved = accessor.getModule("DataModule") else {
-            fatalError("❌ 测试1失败: 无法获取已加载模块 DataModule")
+            fatalError("❌ 测试1失败: 无法获取已加载模块DataModule")
         }
         guard retrieved is MockDataModule else {
             fatalError("❌ 测试1失败: 获取的模块类型不匹配")
         }
 
-        // 获取未加载模块应返回 nil
+        // Get unloaded module should return nil
         guard accessor.getModule("NonExistent") == nil else {
-            fatalError("❌ 测试1失败: 未加载模块应返回 nil")
+            fatalError("❌ 测试1失败: 未加载模块应返回nil")
         }
 
         print("✅ 测试1通过: 获取模块实例正确")
     }
 
-    // MARK: - 测试2: 类型安全获取模块
+    // MARK: - Test 2: Type-Safe Module Access
 
-    /// 验证 getModuleAs 能正确按类型匹配，类型不匹配时返回 nil
+    /// Verify getModuleAs matches type correctly, nil on mismatch
     public static func testGetModuleAs() {
-        print("\n🧪 测试2: 类型安全获取模块")
+        print("\n🧪 测试2: 类型安全模块访问")
 
         let registry = ModuleRegistry.shared
         let accessor = ModuleAccessor.shared
@@ -312,33 +312,33 @@ public enum ModuleAccessorTests {
         let module = MockDataModule()
         registry.register(module: module, name: "TypedModule")
 
-        // 正确类型获取
+        // Correct type access
         let typed: MockDataModule? = accessor.getModuleAs("TypedModule")
         guard typed != nil else {
-            fatalError("❌ 测试2失败: 类型安全获取失败")
+            fatalError("❌ 测试2失败: 类型安全访问失败")
         }
         guard typed?.fetch() == "MockData" else {
             fatalError("❌ 测试2失败: 获取的模块数据不正确")
         }
 
-        // 错误类型应返回 nil
+        // Wrong type should return nil
         let wrongType: String? = accessor.getModuleAs("TypedModule")
         guard wrongType == nil else {
-            fatalError("❌ 测试2失败: 错误类型应返回 nil")
+            fatalError("❌ 测试2失败: 错误类型应返回nil")
         }
 
-        // 未加载模块应返回 nil
+        // Unloaded module should return nil
         let nonExistent: MockDataModule? = accessor.getModuleAs("NonExistent")
         guard nonExistent == nil else {
-            fatalError("❌ 测试2失败: 未加载模块类型安全获取应返回 nil")
+            fatalError("❌ 测试2失败: 未加载模块类型安全访问应返回nil")
         }
 
-        print("✅ 测试2通过: 类型安全获取模块正确")
+        print("✅ 测试2通过: 类型安全模块访问正确")
     }
 
-    // MARK: - 测试3: 获取服务
+    // MARK: - Test 3: Get Service
 
-    /// 验证 getService 通过 ServiceRegistry 获取服务，对不存在/未加载模块返回 nil
+    /// Verify getService returns nil for missing/unloaded services
     public static func testGetService() {
         print("\n🧪 测试3: 获取服务")
 
@@ -349,7 +349,7 @@ public enum ModuleAccessorTests {
         let module = MockDataModule()
         registry.register(module: module, name: "ServiceModule")
 
-        // 注册服务到 ServiceRegistry
+        // Register service to ServiceRegistry
         serviceRegistry.register(
             module,
             serviceName: "DataService",
@@ -358,7 +358,7 @@ public enum ModuleAccessorTests {
             protocolType: DataService.self
         )
 
-        // 获取已注册服务
+        // Get registered service
         guard let service = accessor.getService("ServiceModule", "DataService") else {
             fatalError("❌ 测试3失败: 无法获取服务")
         }
@@ -366,24 +366,24 @@ public enum ModuleAccessorTests {
             fatalError("❌ 测试3失败: 服务类型不匹配")
         }
 
-        // 获取不存在的服务应返回 nil
+        // Non-existent service should return nil
         guard accessor.getService("ServiceModule", "NonExistent") == nil else {
-            fatalError("❌ 测试3失败: 不存在服务应返回 nil")
+            fatalError("❌ 测试3失败: 不存在的服务应返回nil")
         }
 
-        // 未加载模块的服务应返回 nil
+        // Unloaded module service should return nil
         guard accessor.getService("NonExistent", "DataService") == nil else {
-            fatalError("❌ 测试3失败: 未加载模块的服务应返回 nil")
+            fatalError("❌ 测试3失败: 未加载模块的服务应返回nil")
         }
 
         print("✅ 测试3通过: 获取服务正确")
     }
 
-    // MARK: - 测试4: 类型安全获取服务
+    // MARK: - Test 4: Type-Safe Service Access
 
-    /// 验证 getModuleService 能正确按类型获取服务，类型不匹配时返回 nil
+    /// Verify getModuleService returns nil on type mismatch
     public static func testGetModuleServiceTyped() {
-        print("\n🧪 测试4: 类型安全获取服务")
+        print("\n🧪 测试4: 类型安全服务访问")
 
         let registry = ModuleRegistry.shared
         let serviceRegistry = ServiceRegistry.shared
@@ -400,35 +400,35 @@ public enum ModuleAccessorTests {
             protocolType: DataService.self
         )
 
-        // 正确类型获取
+        // Correct type access
         let typed: DataService? = accessor.getModuleService("TypedServiceModule", "DataService")
         guard typed != nil else {
-            fatalError("❌ 测试4失败: 类型安全获取服务失败")
+            fatalError("❌ 测试4失败: 类型安全服务获取失败")
         }
         guard typed?.fetch() == "MockData" else {
             fatalError("❌ 测试4失败: 服务数据不正确")
         }
 
-        // 错误类型应返回 nil
+        // Wrong type should return nil
         let wrongType: String? = accessor.getModuleService("TypedServiceModule", "DataService")
         guard wrongType == nil else {
-            fatalError("❌ 测试4失败: 错误类型服务应返回 nil")
+            fatalError("❌ 测试4失败: 错误类型服务应返回nil")
         }
 
-        // 不存在服务应返回 nil
+        // Non-existent service should return nil
         let nonExistent: DataService? = accessor.getModuleService("TypedServiceModule", "NonExistent")
         guard nonExistent == nil else {
-            fatalError("❌ 测试4失败: 不存在服务应返回 nil")
+            fatalError("❌ 测试4失败: 不存在的服务应返回nil")
         }
 
-        print("✅ 测试4通过: 类型安全获取服务正确")
+        print("✅ 测试4通过: 类型安全服务访问正确")
     }
 
-    // MARK: - 测试5: 检查加载状态
+    // MARK: - Test 5: Load Status
 
-    /// 验证 isModuleLoaded 能正确反映注册表中的加载状态
+    /// Verify isModuleLoaded reflects registry state
     public static func testIsModuleLoaded() {
-        print("\n🧪 测试5: 检查加载状态")
+        print("\n🧪 测试5: 加载状态")
 
         let registry = ModuleRegistry.shared
         let accessor = ModuleAccessor.shared
@@ -437,27 +437,27 @@ public enum ModuleAccessorTests {
         registry.register(module: module, name: "LoadCheckModule")
 
         guard accessor.isModuleLoaded("LoadCheckModule") == true else {
-            fatalError("❌ 测试5失败: 已加载模块应返回 true")
+            fatalError("❌ 测试5失败: 已加载模块应返回true")
         }
         guard accessor.isModuleLoaded("NonExistent") == false else {
-            fatalError("❌ 测试5失败: 未加载模块应返回 false")
+            fatalError("❌ 测试5失败: 未加载模块应返回false")
         }
 
-        // 注销后检查
+        // Check after unregister
         registry.unregister(name: "LoadCheckModule")
         guard accessor.isModuleLoaded("LoadCheckModule") == false else {
-            fatalError("❌ 测试5失败: 注销后模块应返回 false")
+            fatalError("❌ 测试5失败: 未注册模块应返回false")
         }
 
-        print("✅ 测试5通过: 加载状态检查正确")
+        print("✅ 测试5通过: 加载状态正确")
     }
 
-    // MARK: - 测试6: 检查启动状态
+    // MARK: - Test 6: Start Status
 
-    /// 验证 isModuleStarted 能正确反映模块启动状态
-    /// 使用注入的 ModuleStarter 确保状态一致
+    /// Verify isModuleStarted reflects start state
+    /// Use injected starter for consistent state
     public static func testIsModuleStarted() {
-        print("\n🧪 测试6: 检查启动状态")
+        print("\n🧪 测试6: 启动状态")
 
         let registry = ModuleRegistry.shared
         let starter = ModuleStarter(registry: registry, logger: ModuleLogger(category: "TestAccessor"))
@@ -466,35 +466,35 @@ public enum ModuleAccessorTests {
         let module = MockDataModule()
         registry.register(module: module, name: "StartCheckModule")
 
-        // 未启动时应返回 false
+        // Not started should return false
         guard accessor.isModuleStarted("StartCheckModule") == false else {
-            fatalError("❌ 测试6失败: 未启动模块应返回 false")
+            fatalError("❌ 测试6失败: 未启动模块应返回false")
         }
 
-        // 启动模块
-        let result = starter.startModule("StartCheckModule")
+        // Start module
+        let result = starter.startModule(named: "StartCheckModule")
         guard result.isSuccess else {
             fatalError("❌ 测试6失败: 模块启动失败: \(result)")
         }
 
-        // 已启动时应返回 true
+        // Started should return true
         guard accessor.isModuleStarted("StartCheckModule") == true else {
-            fatalError("❌ 测试6失败: 已启动模块应返回 true")
+            fatalError("❌ 测试6失败: 已启动模块应返回true")
         }
 
-        print("✅ 测试6通过: 启动状态检查正确")
+        print("✅ 测试6通过: 启动状态正确")
     }
 
-    // MARK: - 测试7: 线程安全
+    // MARK: - Test 7: Thread Safety
 
-    /// 验证 100 个并发读取操作下 ModuleAccessor 的线程安全性
+    /// Verify thread safety with 100 concurrent reads
     public static func testThreadSafety() {
         print("\n🧪 测试7: 线程安全")
 
         let registry = ModuleRegistry.shared
         let accessor = ModuleAccessor.shared
 
-        // 注册 100 个模块
+        // Register 100 modules
         for i in 0..<100 {
             registry.register(module: MockDataModule(), name: "Concurrent\(i)")
         }
@@ -506,7 +506,7 @@ public enum ModuleAccessorTests {
         for i in 0..<100 {
             group.enter()
             DispatchQueue.global().async {
-                // 并发读取模块实例
+                // Concurrent reads
                 if accessor.getModule("Concurrent\(i)") != nil {
                     countLock.lock()
                     successCount += 1
@@ -519,40 +519,40 @@ public enum ModuleAccessorTests {
         group.wait()
 
         guard successCount == 100 else {
-            fatalError("❌ 测试7失败: 期望 100 次成功获取，实际 \(successCount)")
+            fatalError("❌ 测试7失败: 期望100次成功获取，实际 \(successCount)")
         }
 
-        print("✅ 测试7通过: 线程安全 (100 并发读取)")
+        print("✅ 测试7通过: 线程安全(100并发读取)")
     }
 }
 
-// MARK: - 使用示例
+// MARK: - Usage Example
 /*
- // 1. 获取模块实例（不指定类型）
+ // 1. Get module instance (untyped)
  if let module = ModuleAccessor.shared.getModule("MarketModule") {
-     print("MarketModule 已加载: \(type(of: module))")
+     print("MarketModule loaded: \(type(of: module))")
  }
 
- // 2. 类型安全获取模块
+ // 2. Type-safe module access
  if let market: MarketModule = ModuleAccessor.shared.getModuleAs("MarketModule") {
      market.refreshData()
  }
 
- // 3. 获取服务（不指定类型）
+ // 3. Get service (untyped)
  if let service = ModuleAccessor.shared.getService("MarketModule", "DataSource") {
-     print("DataSource 服务类型: \(type(of: service))")
+     print("DataSource service type: \(type(of: service))")
  }
 
- // 4. 类型安全获取服务
+ // 4. Type-safe service access
  if let ds: DataSourceService = ModuleAccessor.shared.getModuleService("MarketModule", "DataSource") {
      let data = ds.fetchData(symbol: "BTC")
  }
 
- // 5. 检查状态
+ // 5. Check status
  let loaded = ModuleAccessor.shared.isModuleLoaded("MarketModule")
  let started = ModuleAccessor.shared.isModuleStarted("MarketModule")
  print("MarketModule loaded=\(loaded), started=\(started)")
 
- // 6. 测试运行
+ // 6. Run tests
  ModuleAccessorTests.runAllTests()
  */

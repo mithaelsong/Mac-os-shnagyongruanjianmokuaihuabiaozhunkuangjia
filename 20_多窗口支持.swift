@@ -1,3 +1,7 @@
+// 功能20: 多窗口支持
+// 对应: 模块可拥有独立窗口（如 KLine、新闻浮窗等），由管理器统一跟踪
+// 优先级: P2
+
 import Foundation
 import AppKit
 
@@ -174,7 +178,7 @@ public final class ModuleWindowManager {
 /// 多窗口管理模块测试
 /// 运行方式：在 Swift 项目 Debug 模式下编译，或使用 swift 命令行运行
 public func runModuleWindowManagerTests() {
-    print("=== ModuleWindowManager Tests ===")
+    print("=== 模块窗口管理器测试 ===")
     
     let manager = ModuleWindowManager.shared
     

@@ -53,7 +53,8 @@ public final class ServiceRegistry: Sendable {
     private let storage = Storage()
     private let logger = ModuleLogger(category: "ServiceRegistry")
     
-    private init() {}
+    /// 内部初始化（用于测试创建独立实例）
+    internal init() {}
     
     // MARK: - 注册服务
     /// 注册一个服务到服务注册表
@@ -85,7 +86,7 @@ public final class ServiceRegistry: Sendable {
         storage.byServiceName[serviceName, default: []].append(entry)
         os_unfair_lock_unlock(&storage.lock)
         
-        logger.info("Registered service '\(serviceName)' v\(version) from module '\(moduleName)' (protocol: \(descriptor.protocolName))")
+        logger.info("注册服务 '\(serviceName)' v\(version) 来自模块 '\(moduleName)' (协议: \(descriptor.protocolName))")
     }
     
     // MARK: - 服务发现
@@ -119,12 +120,12 @@ public final class ServiceRegistry: Sendable {
         defer { os_unfair_lock_unlock(&storage.lock) }
         
         guard let entry = storage.byModuleAndService[key] else {
-            logger.warning("Service '\(serviceName)' not found in module '\(moduleName)'")
+            logger.warning("服务 '\(serviceName)' 在模块 '\(moduleName)' 中未找到")
             return nil
         }
         
         guard let typed = entry.instance as? T else {
-            logger.error("Service '\(serviceName)' from '\(moduleName)' type mismatch: expected \(String(describing: T.self)), actual \(entry.descriptor.protocolName)")
+            logger.error("服务 '\(serviceName)' 来自 '\(moduleName)' 类型不匹配: 期望 \(String(describing: T.self)), 实际 \(entry.descriptor.protocolName)")
             return nil
         }
         
@@ -148,7 +149,7 @@ public final class ServiceRegistry: Sendable {
         defer { os_unfair_lock_unlock(&storage.lock) }
         
         guard let entries = storage.byServiceName[serviceName] else {
-            logger.warning("Service '\(serviceName)' not found in registry")
+            logger.warning("服务 '\(serviceName)' 未在注册表中找到")
             return nil
         }
         
@@ -164,20 +165,20 @@ public final class ServiceRegistry: Sendable {
         
         guard let entry = candidates.first else {
             if minimumVersion != nil {
-                logger.warning("Service '\(serviceName)' found but no version >= \(minimumVersion!)")
+                logger.warning("服务 '\(serviceName)' 已找到但无版本 >= \(minimumVersion!)")
             } else {
-                logger.warning("Service '\(serviceName)' found but no valid instance")
+                logger.warning("服务 '\(serviceName)' 已找到但无有效实例")
             }
             return nil
         }
         
         guard let typed = entry.instance as? T else {
-            logger.error("Service '\(serviceName)' from '\(entry.descriptor.moduleName)' type mismatch: expected \(String(describing: T.self)), actual \(entry.descriptor.protocolName)")
+            logger.error("服务 '\(serviceName)' 来自 '\(entry.descriptor.moduleName)' 类型不匹配: 期望 \(String(describing: T.self)), 实际 \(entry.descriptor.protocolName)")
             return nil
         }
         
         if let minVersion = minimumVersion {
-            logger.info("Resolved service '\(serviceName)' v\(entry.descriptor.version) from '\(entry.descriptor.moduleName)' (>= \(minVersion))")
+            logger.info("已解析服务 '\(serviceName)' v\(entry.descriptor.version) 来自 '\(entry.descriptor.moduleName)' (>= \(minVersion))")
         }
         
         return typed
@@ -198,10 +199,10 @@ public final class ServiceRegistry: Sendable {
                 storage.byServiceName.removeValue(forKey: serviceName)
             }
             os_unfair_lock_unlock(&storage.lock)
-            logger.info("Unregistered service '\(serviceName)' from module '\(moduleName)'")
+            logger.info("已注销服务 '\(serviceName)' 来自模块 '\(moduleName)'")
         } else {
             os_unfair_lock_unlock(&storage.lock)
-            logger.warning("Unregister failed: service '\(serviceName)' not found in module '\(moduleName)'")
+            logger.warning("注销失败: 服务 '\(serviceName)' 在模块 '\(moduleName)' 中未找到")
         }
     }
     
@@ -223,7 +224,7 @@ public final class ServiceRegistry: Sendable {
         }
         
         os_unfair_lock_unlock(&storage.lock)
-        logger.info("Unregistered all services from module '\(moduleName)' (\(keysToRemove.count) services)")
+        logger.info("已注销模块 '\(moduleName)' 的所有服务 (\(keysToRemove.count) 个服务)")
     }
     
     // MARK: - 统计信息
@@ -314,7 +315,8 @@ public final class ServiceInvoker: Sendable {
     private let registry = ServiceRegistry.shared
     private let logger = ModuleLogger(category: "ServiceInvoker")
     
-    private init() {}
+    /// 内部初始化（用于测试创建独立实例）
+    internal init() {}
     
     // MARK: - 调用指定模块的服务
     /// 调用指定模块的指定服务，通过闭包执行方法
@@ -330,7 +332,7 @@ public final class ServiceInvoker: Sendable {
         method: (T) -> R
     ) -> R? {
         guard let service: T = registry.resolve(moduleName: moduleName, serviceName: serviceName, type: T.self) else {
-            logger.warning("Invoke failed: cannot resolve \(moduleName).\(serviceName) as \(String(describing: T.self))")
+            logger.warning("Invoke失败: 无法解析 \(moduleName).\(serviceName) 为 \(String(describing: T.self))")
             return nil
         }
         return method(service)
@@ -350,7 +352,7 @@ public final class ServiceInvoker: Sendable {
         minimumVersion: String? = nil
     ) -> R? {
         guard let service: T = registry.resolve(serviceName: serviceName, type: T.self, minimumVersion: minimumVersion) else {
-            logger.warning("InvokeAny failed: cannot resolve service '\(serviceName)' (minVersion: \(minimumVersion ?? "none"))")
+            logger.warning("InvokeAny失败: 无法解析服务 '\(serviceName)' (最低版本: \(minimumVersion ?? "无"))")
             return nil
         }
         return method(service)
@@ -415,7 +417,7 @@ public enum ServiceRegistryTests {
     
     // MARK: - 运行所有测试
     public static func runAllTests() {
-        print("=== ServiceRegistry Tests ===")
+        print("=== 服务注册表测试 ===")
         testRegisterAndResolve()
         testDiscover()
         testVersionMatching()
@@ -424,12 +426,12 @@ public enum ServiceRegistryTests {
         testInvokeAny()
         testAsyncInvoke()
         testThreadSafety()
-        print("\n=== All ServiceRegistry Tests Passed ✅ ===")
+        print("\n=== 全部服务注册表测试通过 ✅ ===")
     }
     
     // MARK: - 测试1: 注册与精确解析
     private static func testRegisterAndResolve() {
-        print("\n🧪 Test 1: Register and Resolve")
+        print("\n🧪 测试1: 注册与解析")
         
         let registry = ServiceRegistry()
         let ds = MockDataSource()
@@ -437,29 +439,29 @@ public enum ServiceRegistryTests {
         
         // 精确解析
         guard let resolved: DataSourceService = registry.resolve(moduleName: "MarketModule", serviceName: "DataSource", type: DataSourceService.self) else {
-            fatalError("❌ Test 1 failed: resolve returned nil")
+            fatalError("❌ 测试1失败: resolve返回nil")
         }
         guard resolved.fetchData(symbol: "BTC") == "Data for BTC from MockDataSource" else {
-            fatalError("❌ Test 1 failed: wrong data")
+            fatalError("❌ 测试1失败: 数据不正确")
         }
         guard resolved.sourceName == "MockDataSource" else {
-            fatalError("❌ Test 1 failed: wrong sourceName")
+            fatalError("❌ 测试1失败: sourceName不正确")
         }
         
         // 解析不存在的模块
         let notFound = registry.resolve(moduleName: "FakeModule", serviceName: "DataSource", type: DataSourceService.self)
-        guard notFound == nil else { fatalError("❌ Test 1b failed: should be nil for non-existent module") }
+        guard notFound == nil else { fatalError("❌ 测试1b失败: 不存在的模块应返回nil") }
         
         // 解析不存在的类型（类型不匹配）
         let wrongType = registry.resolve(moduleName: "MarketModule", serviceName: "DataSource", type: IndicatorService.self)
-        guard wrongType == nil else { fatalError("❌ Test 1c failed: should be nil for wrong type") }
+        guard wrongType == nil else { fatalError("❌ 测试1c失败: 类型不匹配应返回nil") }
         
-        print("✅ Test 1 passed: Register and resolve work correctly")
+        print("✅ 测试1通过: 注册与解析正确")
     }
     
     // MARK: - 测试2: 服务发现
     private static func testDiscover() {
-        print("\n🧪 Test 2: Service Discovery")
+        print("\n🧪 测试2: 服务发现")
         
         let registry = ServiceRegistry()
         registry.register(MockDataSource(), serviceName: "DataSource", moduleName: "MarketA", version: "1.0.0", protocolType: DataSourceService.self)
@@ -468,26 +470,26 @@ public enum ServiceRegistryTests {
         
         // 发现 DataSource 的所有提供者
         let providers = registry.discover(serviceName: "DataSource")
-        guard providers.count == 2 else { fatalError("❌ Test 2a failed: expected 2 providers, got \(providers.count)") }
+        guard providers.count == 2 else { fatalError("❌ 测试2a失败: 期望2个提供者，实际\(providers.count)") }
         let names = providers.map(\.moduleName).sorted()
-        guard names == ["MarketA", "MarketB"] else { fatalError("❌ Test 2a failed: wrong provider names: \(names)") }
+        guard names == ["MarketA", "MarketB"] else { fatalError("❌ 测试2a失败: 提供者名称不正确: \(names)") }
         
         // 发现不存在的服
         let empty = registry.discover(serviceName: "NonExistent")
-        guard empty.isEmpty else { fatalError("❌ Test 2b failed: should be empty") }
+        guard empty.isEmpty else { fatalError("❌ 测试2b失败: 应为空") }
         
         // 验证服务描述符内容
         let desc = providers.first { $0.moduleName == "MarketB" }!
         guard desc.version == "1.1.0" && desc.serviceName == "DataSource" else {
-            fatalError("❌ Test 2c failed: descriptor content incorrect")
+            fatalError("❌ 测试2c失败: 描述符内容不正确")
         }
         
-        print("✅ Test 2 passed: Service discovery works correctly")
+        print("✅ 测试2通过: 服务发现正确")
     }
     
     // MARK: - 测试3: 版本匹配
     private static func testVersionMatching() {
-        print("\n🧪 Test 3: Version Matching")
+        print("\n🧪 测试3: 版本匹配")
         
         let registry = ServiceRegistry()
         registry.register(MockDataSource(), serviceName: "DataSource", moduleName: "OldModule", version: "1.0.0", protocolType: DataSourceService.self)
@@ -495,28 +497,28 @@ public enum ServiceRegistryTests {
         
         // 不要求版本，应返回第一个注册的（OldModule，因为注册顺序优先）
         let any = registry.resolve(serviceName: "DataSource", type: DataSourceService.self)
-        guard any != nil else { fatalError("❌ Test 3a failed: any resolve returned nil") }
+        guard any != nil else { fatalError("❌ 测试3a失败: 任意解析返回nil") }
         
         // 要求 >= 1.5.0，应返回 NewModule（V2）
         let v2 = registry.resolve(serviceName: "DataSource", type: DataSourceService.self, minimumVersion: "1.5.0")
-        guard let v2ds = v2 else { fatalError("❌ Test 3b failed: v2 not found with minVersion 1.5.0") }
-        guard v2ds.fetchData(symbol: "X") == "V2 Data for X" else { fatalError("❌ Test 3b failed: got wrong instance") }
-        guard v2ds.sourceName == "MockDataSourceV2" else { fatalError("❌ Test 3b failed: not V2 instance") }
+        guard let v2ds = v2 else { fatalError("❌ 测试3b失败: minVersion 1.5.0未找到V2") }
+        guard v2ds.fetchData(symbol: "X") == "V2 Data for X" else { fatalError("❌ 测试3b失败: 获取到错误的实例") }
+        guard v2ds.sourceName == "MockDataSourceV2" else { fatalError("❌ 测试3b失败: 不是V2实例") }
         
         // 要求 >= 3.0.0，应返回 nil（没有满足条件的）
         let v3 = registry.resolve(serviceName: "DataSource", type: DataSourceService.self, minimumVersion: "3.0.0")
-        guard v3 == nil else { fatalError("❌ Test 3c failed: should be nil for minVersion 3.0.0") }
+        guard v3 == nil else { fatalError("❌ 测试3c失败: minVersion 3.0.0应返回nil") }
         
         // 边界：要求 >= 1.0.0，两个都满足，返回第一个（OldModule）
         let v1 = registry.resolve(serviceName: "DataSource", type: DataSourceService.self, minimumVersion: "1.0.0")
-        guard v1 != nil else { fatalError("❌ Test 3d failed: v1 should be found") }
+        guard v1 != nil else { fatalError("❌ 测试3d失败: v1应能找到") }
         
-        print("✅ Test 3 passed: Version matching works correctly")
+        print("✅ 测试3通过: 版本匹配正确")
     }
     
     // MARK: - 测试4: 注销服务
     private static func testUnregister() {
-        print("\n🧪 Test 4: Unregister")
+        print("\n🧪 测试4: 注销服务")
         
         let registry = ServiceRegistry()
         registry.register(MockDataSource(), serviceName: "DataSource", moduleName: "ModA", version: "1.0.0", protocolType: DataSourceService.self)
@@ -525,30 +527,30 @@ public enum ServiceRegistryTests {
         // 注销单个服务
         registry.unregister(moduleName: "ModA", serviceName: "DataSource")
         guard registry.resolve(moduleName: "ModA", serviceName: "DataSource", type: DataSourceService.self) == nil else {
-            fatalError("❌ Test 4a failed: DataSource should be unregistered")
+            fatalError("❌ 测试4a失败: DataSource应已注销")
         }
         guard registry.resolve(moduleName: "ModA", serviceName: "Indicator", type: IndicatorService.self) != nil else {
-            fatalError("❌ Test 4b failed: Indicator should still exist")
+            fatalError("❌ 测试4b失败: Indicator应仍存在")
         }
         
         // 注销模块的所有服务
         registry.unregisterAll(moduleName: "ModA")
         guard registry.services(of: "ModA").isEmpty else {
-            fatalError("❌ Test 4c failed: all services of ModA should be removed")
+            fatalError("❌ 测试4c失败: ModA的所有服务应已移除")
         }
         guard registry.discover(serviceName: "DataSource").isEmpty else {
-            fatalError("❌ Test 4d failed: DataSource should be removed from discover")
+            fatalError("❌ 测试4d失败: DataSource应从发现中移除")
         }
         
         // 注销不存在的服务（不应崩溃）
         registry.unregister(moduleName: "ModA", serviceName: "FakeService")
         
-        print("✅ Test 4 passed: Unregister works correctly")
+        print("✅ 测试4通过: 注销服务正确")
     }
     
     // MARK: - 测试5: 调用器（指定模块）
     private static func testInvoke() {
-        print("\n🧪 Test 5: ServiceInvoker (invoke)")
+        print("\n🧪 测试5: 调用器（invoke）")
         
         let registry = ServiceRegistry()
         registry.register(MockDataSource(), serviceName: "DataSource", moduleName: "Market", version: "1.0.0", protocolType: DataSourceService.self)
@@ -557,21 +559,21 @@ public enum ServiceRegistryTests {
             svc.fetchData(symbol: "ETH")
         }
         guard result == "Data for ETH from MockDataSource" else {
-            fatalError("❌ Test 5 failed: wrong result: \(String(describing: result))")
+            fatalError("❌ 测试5失败: 结果不正确: \(String(describing: result))")
         }
         
         // 调用不存在的服务
         let nilResult = ServiceInvoker.shared.invoke(moduleName: "Fake", serviceName: "Fake") { (svc: DataSourceService) in
             svc.fetchData(symbol: "X")
         }
-        guard nilResult == nil else { fatalError("❌ Test 5b failed: should be nil") }
+        guard nilResult == nil else { fatalError("❌ 测试5b失败: 应为nil") }
         
-        print("✅ Test 5 passed: ServiceInvoker invoke works correctly")
+        print("✅ 测试5通过: 调用器invoke正确")
     }
     
     // MARK: - 测试6: 调用器（任意模块）
     private static func testInvokeAny() {
-        print("\n🧪 Test 6: ServiceInvoker (invokeAny)")
+        print("\n🧪 测试6: 调用器（invokeAny）")
         
         let registry = ServiceRegistry()
         registry.register(MockDataSource(), serviceName: "DataSource", moduleName: "Market", version: "1.0.0", protocolType: DataSourceService.self)
@@ -581,20 +583,20 @@ public enum ServiceRegistryTests {
         let result1 = ServiceInvoker.shared.invokeAny(serviceName: "DataSource") { (svc: DataSourceService) in
             svc.fetchData(symbol: "BTC")
         }
-        guard result1 != nil else { fatalError("❌ Test 6a failed: invokeAny returned nil") }
+        guard result1 != nil else { fatalError("❌ 测试6a失败: invokeAny返回nil") }
         
         // 指定最低版本 2.0.0，应返回 V2
         let result2 = ServiceInvoker.shared.invokeAny(serviceName: "DataSource", method: { (svc: DataSourceService) in
             svc.sourceName
         }, minimumVersion: "2.0.0")
-        guard result2 == "MockDataSourceV2" else { fatalError("❌ Test 6b failed: expected V2, got \(String(describing: result2))") }
+        guard result2 == "MockDataSourceV2" else { fatalError("❌ 测试6b失败: 期望V2，实际\(String(describing: result2))") }
         
-        print("✅ Test 6 passed: ServiceInvoker invokeAny works correctly")
+        print("✅ 测试6通过: 调用器invokeAny正确")
     }
     
     // MARK: - 测试7: 异步调用
     private static func testAsyncInvoke() {
-        print("\n🧪 Test 7: Async Invoke")
+        print("\n🧪 测试7: 异步调用")
         
         let registry = ServiceRegistry()
         registry.register(MockDataSource(), serviceName: "DataSource", moduleName: "AsyncMarket", version: "1.0.0", protocolType: DataSourceService.self)
@@ -612,16 +614,16 @@ public enum ServiceRegistryTests {
         }
         
         let timeout = semaphore.wait(timeout: .now() + 2)
-        guard timeout == .success else { fatalError("❌ Test 7 failed: async timeout") }
-        guard asyncResult == "Data for SOL from MockDataSource" else { fatalError("❌ Test 7 failed: wrong result: \(String(describing: asyncResult))") }
-        guard onMainThread else { fatalError("❌ Test 7 failed: completion not on main thread") }
+        guard timeout == .success else { fatalError("❌ 测试7失败: 异步超时") }
+        guard asyncResult == "Data for SOL from MockDataSource" else { fatalError("❌ 测试7失败: 结果不正确: \(String(describing: asyncResult))") }
+        guard onMainThread else { fatalError("❌ 测试7失败: 回调不在主线程") }
         
-        print("✅ Test 7 passed: Async invoke works correctly")
+        print("✅ 测试7通过: 异步调用正确")
     }
     
     // MARK: - 测试8: 线程安全
     private static func testThreadSafety() {
-        print("\n🧪 Test 8: Thread Safety (100 concurrent registrations)")
+        print("\n🧪 测试8: 线程安全 (100个并发注册)")
         
         let registry = ServiceRegistry()
         let group = DispatchGroup()
@@ -637,10 +639,10 @@ public enum ServiceRegistryTests {
         
         // 验证发现结果
         let providers = registry.discover(serviceName: "DataSource")
-        guard providers.count == 100 else { fatalError("❌ Test 8a failed: expected 100 providers, got \(providers.count)") }
+        guard providers.count == 100 else { fatalError("❌ 测试8a失败: 期望100个提供者，实际\(providers.count)") }
         
         // 验证总数
-        guard registry.totalServiceCount == 100 else { fatalError("❌ Test 8b failed: expected 100 services, got \(registry.totalServiceCount)") }
+        guard registry.totalServiceCount == 100 else { fatalError("❌ 测试8b失败: 期望100个服务，实际\(registry.totalServiceCount)") }
         
         // 并发解析
         let resolveGroup = DispatchGroup()
@@ -659,9 +661,9 @@ public enum ServiceRegistryTests {
             }
         }
         resolveGroup.wait()
-        guard resolvedCount == 100 else { fatalError("❌ Test 8c failed: expected 100 resolved, got \(resolvedCount)") }
+        guard resolvedCount == 100 else { fatalError("❌ 测试8c失败: 期望100个解析成功，实际\(resolvedCount)") }
         
-        print("✅ Test 8 passed: Thread safety verified (100 concurrent registrations + 100 concurrent resolves)")
+        print("✅ 测试8通过: 线程安全验证 (100并发注册+100并发解析)")
     }
 }
 

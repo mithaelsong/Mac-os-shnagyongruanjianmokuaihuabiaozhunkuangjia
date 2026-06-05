@@ -123,12 +123,13 @@ public final class ModuleScannerTests {
         testScanMissingBundle()
         testScanMultipleModules()
         testPrioritySorting()
-        print("\n🎉 All ModuleScanner tests completed!")
+        print("
+=== 全部模块扫描器测试通过 ✅ ===")
     }
     
     /// 测试1: 扫描有效模块
     public static func testScanValidModule() {
-        print("\n🧪 Test 1: Scan Valid Module")
+        print("\n🧪 测试1: 扫描有效模块")
         
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("ScannerTest_\(UUID().uuidString)")
@@ -140,13 +141,13 @@ public final class ModuleScannerTests {
         // 创建 metadata
         let metadata = ModuleMetadata(name: "TestModule", version: "1.0", description: "Test", entryClass: "TestEntry")
         guard let metadataData = try? JSONEncoder().encode(metadata) else {
-            fatalError("❌ Test 1 failed: cannot encode metadata")
+            fatalError("❌ 测试1失败: 无法编码metadata")
         }
         let metadataURL = moduleDir.appendingPathComponent("ModuleMetadata.json")
         do {
             try metadataData.write(to: metadataURL)
         } catch {
-            fatalError("❌ Test 1 failed: cannot write metadata: \(error)")
+            fatalError("❌ 测试1失败: 无法写入metadata: \(error)")
         }
         
         // 创建 bundle（随便创建一个空文件占位）
@@ -156,23 +157,23 @@ public final class ModuleScannerTests {
         let results = ModuleScanner.shared.scan(directory: tempDir)
         
         guard results.count == 1 else {
-            fatalError("❌ Test 1 failed: expected 1 module, got \(results.count)")
+            fatalError("❌ 测试1失败: 期望1个模块，实际 \(results.count)")
         }
         guard results[0].name == "TestModule" else {
-            fatalError("❌ Test 1 failed: expected name 'TestModule', got '\(results[0].name)'")
+            fatalError("❌ 测试1失败: 期望名称'TestModule'，实际 '\(results[0].name)'")
         }
         guard results[0].metadata.version == "1.0" else {
-            fatalError("❌ Test 1 failed: expected version 1.0, got \(results[0].metadata.version)")
+            fatalError("❌ 测试1失败: 期望版本1.0，实际 \(results[0].metadata.version)")
         }
         
-        print("✅ Test 1 passed: Valid module scanned correctly")
+        print("✅ 测试1通过: 有效模块扫描正确")
         
         try? FileManager.default.removeItem(at: tempDir)
     }
     
     /// 测试2: 扫描不存在的目录
     public static func testScanInvalidDirectory() {
-        print("\n🧪 Test 2: Scan Invalid Directory")
+        print("\n🧪 测试2: 扫描无效目录")
         
         let nonexistent = FileManager.default.temporaryDirectory
             .appendingPathComponent("NONEXISTENT_\(UUID().uuidString)")
@@ -180,15 +181,15 @@ public final class ModuleScannerTests {
         let results = ModuleScanner.shared.scan(directory: nonexistent)
         
         guard results.isEmpty else {
-            fatalError("❌ Test 2 failed: expected empty results for nonexistent dir, got \(results.count)")
+            fatalError("❌ 测试2失败: 期望不存在的目录返回空结果，实际 \(results.count)")
         }
         
-        print("✅ Test 2 passed: Nonexistent directory returns empty array")
+        print("✅ 测试2通过: 不存在的目录返回空数组")
     }
     
     /// 测试3: 扫描空目录
     public static func testScanEmptyDirectory() {
-        print("\n🧪 Test 3: Scan Empty Directory")
+        print("\n🧪 测试3: 扫描空目录")
         
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("ScannerTest_\(UUID().uuidString)")
@@ -197,17 +198,17 @@ public final class ModuleScannerTests {
         let results = ModuleScanner.shared.scan(directory: tempDir)
         
         guard results.isEmpty else {
-            fatalError("❌ Test 3 failed: expected empty results for empty dir, got \(results.count)")
+            fatalError("❌ 测试3失败: 期望空目录返回空结果，实际 \(results.count)")
         }
         
-        print("✅ Test 3 passed: Empty directory returns empty array")
+        print("✅ 测试3通过: 空目录返回空数组")
         
         try? FileManager.default.removeItem(at: tempDir)
     }
     
     /// 测试4: 扫描缺少 metadata 的模块
     public static func testScanMissingMetadata() {
-        print("\n🧪 Test 4: Scan Module with Missing Metadata")
+        print("\n🧪 测试4: 扫描缺少metadata的模块")
         
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("ScannerTest_\(UUID().uuidString)")
@@ -222,17 +223,17 @@ public final class ModuleScannerTests {
         let results = ModuleScanner.shared.scan(directory: tempDir)
         
         guard results.isEmpty else {
-            fatalError("❌ Test 4 failed: expected empty results for module without metadata, got \(results.count)")
+            fatalError("❌ 测试4失败: 期望缺少metadata的模块返回空结果，实际 \(results.count)")
         }
         
-        print("✅ Test 4 passed: Module without metadata skipped correctly")
+        print("✅ 测试4通过: 缺少metadata的模块正确跳过")
         
         try? FileManager.default.removeItem(at: tempDir)
     }
     
     /// 测试5: 扫描 metadata 损坏的模块
     public static func testScanInvalidMetadata() {
-        print("\n🧪 Test 5: Scan Module with Invalid Metadata")
+        print("\n🧪 测试5: 扫描metadata无效的模块")
         
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("ScannerTest_\(UUID().uuidString)")
@@ -244,12 +245,12 @@ public final class ModuleScannerTests {
         // 写入无效 JSON
         let metadataURL = moduleDir.appendingPathComponent("ModuleMetadata.json")
         guard let badData = "{{{ invalid json ".data(using: .utf8) else {
-            fatalError("❌ Test 5 failed: cannot create bad json data")
+            fatalError("❌ 测试5失败: 无法创建无效json数据")
         }
         do {
             try badData.write(to: metadataURL)
         } catch {
-            fatalError("❌ Test 5 failed: cannot write bad metadata: \(error)")
+            fatalError("❌ 测试5失败: 无法写入无效metadata: \(error)")
         }
         
         let bundleURL = moduleDir.appendingPathComponent("BadMetadataModule.bundle")
@@ -258,17 +259,17 @@ public final class ModuleScannerTests {
         let results = ModuleScanner.shared.scan(directory: tempDir)
         
         guard results.isEmpty else {
-            fatalError("❌ Test 5 failed: expected empty results for module with bad metadata, got \(results.count)")
+            fatalError("❌ 测试5失败: 期望metadata无效的模块返回空结果，实际 \(results.count)")
         }
         
-        print("✅ Test 5 passed: Module with invalid metadata skipped correctly")
+        print("✅ 测试5通过: metadata无效的模块正确跳过")
         
         try? FileManager.default.removeItem(at: tempDir)
     }
     
     /// 测试6: 扫描缺少 bundle 的模块
     public static func testScanMissingBundle() {
-        print("\n🧪 Test 6: Scan Module with Missing Bundle")
+        print("\n🧪 测试6: 扫描缺少bundle的模块")
         
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("ScannerTest_\(UUID().uuidString)")
@@ -280,29 +281,29 @@ public final class ModuleScannerTests {
         // 有 metadata 但没有 bundle
         let metadata = ModuleMetadata(name: "NoBundleModule", version: "1.0", description: "", entryClass: "")
         guard let metadataData = try? JSONEncoder().encode(metadata) else {
-            fatalError("❌ Test 6 failed: cannot encode metadata")
+            fatalError("❌ 测试6失败: 无法编码metadata")
         }
         let metadataURL = moduleDir.appendingPathComponent("ModuleMetadata.json")
         do {
             try metadataData.write(to: metadataURL)
         } catch {
-            fatalError("❌ Test 6 failed: cannot write metadata: \(error)")
+            fatalError("❌ 测试6失败: 无法写入metadata: \(error)")
         }
         
         let results = ModuleScanner.shared.scan(directory: tempDir)
         
         guard results.isEmpty else {
-            fatalError("❌ Test 6 failed: expected empty results for module without bundle, got \(results.count)")
+            fatalError("❌ 测试6失败: 期望缺少bundle的模块返回空结果，实际 \(results.count)")
         }
         
-        print("✅ Test 6 passed: Module without bundle skipped correctly")
+        print("✅ 测试6通过: 缺少bundle的模块正确跳过")
         
         try? FileManager.default.removeItem(at: tempDir)
     }
     
     /// 测试7: 扫描多模块混合场景
     public static func testScanMultipleModules() {
-        print("\n🧪 Test 7: Scan Multiple Modules (Mixed Valid/Invalid)")
+        print("\n🧪 测试7: 扫描多模块(混合有效/无效)")
         
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("ScannerTest_\(UUID().uuidString)")
@@ -325,21 +326,21 @@ public final class ModuleScannerTests {
                 if config.validMetadata {
                     let metadata = ModuleMetadata(name: config.name, version: "2.0", description: "", entryClass: "")
                     guard let data = try? JSONEncoder().encode(metadata) else {
-                        fatalError("❌ Test 7 failed: cannot encode metadata for \(config.name)")
+                        fatalError("❌ 测试7失败: 无法编码metadata \(config.name)")
                     }
                     do {
                         try data.write(to: metadataURL)
                     } catch {
-                        fatalError("❌ Test 7 failed: cannot write metadata for \(config.name): \(error)")
+                        fatalError("❌ 测试7失败: 无法写入metadata \(config.name): \(error)")
                     }
                 } else {
                     guard let badData = "bad json".data(using: .utf8) else {
-                        fatalError("❌ Test 7 failed: cannot create bad json data")
+                        fatalError("❌ 测试7失败: cannot create bad json data")
                     }
                     do {
                         try badData.write(to: metadataURL)
                     } catch {
-                        fatalError("❌ Test 7 failed: cannot write bad metadata: \(error)")
+                        fatalError("❌ 测试7失败: 无法写入无效metadata: \(error)")
                     }
                 }
             }
@@ -353,25 +354,25 @@ public final class ModuleScannerTests {
         let results = ModuleScanner.shared.scan(directory: tempDir)
         
         guard results.count == 2 else {
-            fatalError("❌ Test 7 failed: expected 2 valid modules, got \(results.count)")
+            fatalError("❌ 测试7失败: 期望2个有效模块，实际 \(results.count)")
         }
         
         let names = results.map { $0.name }
         guard Set(names) == Set(["ValidA", "ValidB"]) else {
-            fatalError("❌ Test 7 failed: expected [ValidA, ValidB], got \(names)")
+            fatalError("❌ 测试7失败: 期望[ValidA, ValidB]，实际 \(names)")
         }
         guard names.count == 2 else {
-            fatalError("❌ Test 7 failed: expected 2 modules, got \(names.count)")
+            fatalError("❌ 测试7失败: 期望2个模块，实际 \(names.count)")
         }
         
-        print("✅ Test 7 passed: Mixed scan returns only 2 valid modules")
+        print("✅ 测试7通过: 混合扫描只返回2个有效模块")
         
         try? FileManager.default.removeItem(at: tempDir)
     }
     
     /// 测试8: 优先级排序
     public static func testPrioritySorting() {
-        print("\n🧪 Test 8: Priority Sorting")
+        print("\n🧪 测试8: 优先级排序")
         
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("ScannerTest_\(UUID().uuidString)")
@@ -386,12 +387,12 @@ public final class ModuleScannerTests {
             
             let metadata = ModuleMetadata(name: name, version: "1.0", description: "", entryClass: "", priority: priority)
             guard let data = try? JSONEncoder().encode(metadata) else {
-                fatalError("❌ Test 8 failed: cannot encode metadata for \(name)")
+                fatalError("❌ 测试8失败: 无法编码metadata \(name)")
             }
             do {
                 try data.write(to: moduleDir.appendingPathComponent("ModuleMetadata.json"))
             } catch {
-                fatalError("❌ Test 8 failed: cannot write metadata for \(name): \(error)")
+                fatalError("❌ 测试8失败: 无法写入metadata \(name): \(error)")
             }
             
             let bundleURL = moduleDir.appendingPathComponent("\(name).bundle")
@@ -401,20 +402,20 @@ public final class ModuleScannerTests {
         let results = ModuleScanner.shared.scan(directory: tempDir)
         
         guard results.count == 3 else {
-            fatalError("❌ Test 8 failed: expected 3 modules, got \(results.count)")
+            fatalError("❌ 测试8失败: 期望3个模块，实际 \(results.count)")
         }
         
         let orderedNames = results.map(\.name)
         guard orderedNames == ["ModuleA", "ModuleB", "ModuleC"] else {
-            fatalError("❌ Test 8 failed: expected [ModuleA, ModuleB, ModuleC] (priority order), got \(orderedNames)")
+            fatalError("❌ 测试8失败: 期望[ModuleA, ModuleB, ModuleC](优先级顺序)，实际 \(orderedNames)")
         }
         
         let prioritiesResult = results.map(\.metadata.priority)
         guard prioritiesResult == [10, 50, 100] else {
-            fatalError("❌ Test 8 failed: priorities not sorted: \(prioritiesResult)")
+            fatalError("❌ 测试8失败: 优先级未排序: \(prioritiesResult)")
         }
         
-        print("✅ Test 8 passed: Modules sorted by priority correctly")
+        print("✅ 测试8通过: 模块按优先级正确排序")
         
         try? FileManager.default.removeItem(at: tempDir)
     }
