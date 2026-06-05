@@ -327,37 +327,37 @@ public enum WindowManagerTests {
         // 打开新窗口
         let result1 = wm.open(windowNamed: "Main")
         guard result1 == true else {
-            fatalError("❌ 打开失败: 新窗口应返回true")
+            fatalError("❌ 测试1失败: 新窗口应返回true")
         }
         
         // 重复打开已存在的窗口（应返回 true，相当于激活）
         let result2 = wm.open(windowNamed: "Main")
         guard result2 == true else {
-            fatalError("❌ 打开失败: 已打开窗口应返回true")
+            fatalError("❌ 测试1失败: 已打开窗口应返回true")
         }
         
         // 关闭已存在的窗口
         let result3 = wm.close(windowNamed: "Main")
         guard result3 == true else {
-            fatalError("❌ 关闭失败: 存在窗口应返回true")
+            fatalError("❌ 测试1失败: 存在窗口应返回true")
         }
         
         // 关闭后再次关闭（应返回 false）
         let result4 = wm.close(windowNamed: "Main")
         guard result4 == true else {
-            fatalError("❌ 关闭失败: 已关闭窗口仍应返回true（状态存在）")
+            fatalError("❌ 测试1失败: 已关闭窗口仍应返回true（状态存在）")
         }
         
         // 关闭不存在的窗口
         let result5 = wm.close(windowNamed: "NonExistent")
         guard result5 == false else {
-            fatalError("❌ 关闭失败: 不存在窗口应返回false")
+            fatalError("❌ 测试1失败: 不存在窗口应返回false")
         }
         
         // 空名称打开
         let result6 = wm.open(windowNamed: "")
         guard result6 == false else {
-            fatalError("❌ 打开失败: 空名称应返回false")
+            fatalError("❌ 测试1失败: 空名称应返回false")
         }
         
         print("✅ 测试1通过: 打开/关闭行为正确")
@@ -371,31 +371,31 @@ public enum WindowManagerTests {
         
         // 不存在的窗口
         guard wm.isWindowOpen("Ghost") == false else {
-            fatalError("❌ isWindowOpen: 不存在窗口应为false")
+            fatalError("❌ 测试2失败: 不存在窗口应为false")
         }
         
         // 打开后查询
         wm.open(windowNamed: "Chart")
         guard wm.isWindowOpen("Chart") == true else {
-            fatalError("❌ isWindowOpen: 'Chart'应为打开")
+            fatalError("❌ 测试2失败: 'Chart'应为打开")
         }
         guard wm.getWindowState("Chart") == .open else {
-            fatalError("❌ getWindowState: 'Chart'应为.open")
+            fatalError("❌ 测试2失败: 'Chart'应为.open")
         }
         
         // 关闭后查询
         wm.close(windowNamed: "Chart")
         guard wm.isWindowOpen("Chart") == false else {
-            fatalError("❌ isWindowOpen: 已关闭窗口应为false")
+            fatalError("❌ 测试2失败: 已关闭窗口应为false")
         }
         guard wm.getWindowState("Chart") == .closed else {
-            fatalError("❌ getWindowState: 已关闭窗口应为.closed")
+            fatalError("❌ 测试2失败: 已关闭窗口应为.closed")
         }
         
         // 重新打开后查询
         wm.open(windowNamed: "Chart")
         guard wm.isWindowOpen("Chart") == true else {
-            fatalError("❌ isWindowOpen: 重新打开窗口应为true")
+            fatalError("❌ 测试2失败: 重新打开窗口应为true")
         }
         
         print("✅ 测试2通过: 状态查询正确")
@@ -410,37 +410,37 @@ public enum WindowManagerTests {
         
         // 未设置帧时返回 nil
         guard wm.getWindowFrame("Settings") == nil else {
-            fatalError("❌ getWindowFrame: 设置前应为nil")
+            fatalError("❌ 测试3失败: 设置前应为nil")
         }
         
         // 设置合法帧
         let result1 = wm.setWindowFrame("Settings", x: 100, y: 200, width: 800, height: 600)
         guard result1 == true else {
-            fatalError("❌ setWindowFrame: 合法帧应返回true")
+            fatalError("❌ 测试3失败: 合法帧应返回true")
         }
         
         let frame = wm.getWindowFrame("Settings")
         guard let frame = frame else {
-            fatalError("❌ getWindowFrame: 设置后不应为nil")
+            fatalError("❌ 测试3失败: 设置后不应为nil")
         }
         guard frame.x == 100, frame.y == 200, frame.width == 800, frame.height == 600 else {
-            fatalError("❌ getWindowFrame: 返回\(frame)，期望(100, 200, 800, 600)")
+            fatalError("❌ 测试3失败: 返回\(frame)，期望(100, 200, 800, 600)")
         }
         
         // 更新帧
         let result2 = wm.setWindowFrame("Settings", x: 50, y: 50, width: 400, height: 300)
         guard result2 == true else {
-            fatalError("❌ setWindowFrame: 更新应返回true")
+            fatalError("❌ 测试3失败: 更新应返回true")
         }
         let updated = wm.getWindowFrame("Settings")
         guard updated?.width == 400, updated?.height == 300 else {
-            fatalError("❌ getWindowFrame: 更新失败")
+            fatalError("❌ 测试3失败: 更新失败")
         }
         
         // 对不存在的窗口设置帧
         let result3 = wm.setWindowFrame("Ghost", x: 0, y: 0, width: 100, height: 100)
         guard result3 == false else {
-            fatalError("❌ setWindowFrame: 不存在窗口应为false")
+            fatalError("❌ 测试3失败: 不存在窗口应为false")
         }
         
         print("✅ 测试3通过: 帧设置/获取正确")
@@ -456,41 +456,41 @@ public enum WindowManagerTests {
         // 最小化已打开的窗口
         let result1 = wm.minimizeWindow("Trade")
         guard result1 == true else {
-            fatalError("❌ minimizeWindow: 已打开窗口应返回true")
+            fatalError("❌ 测试4失败: 已打开窗口应返回true")
         }
         guard wm.getWindowState("Trade") == .minimized else {
-            fatalError("❌ getWindowState: 最小化后应为.minimized")
+            fatalError("❌ 测试4失败: 最小化后应为.minimized")
         }
         guard wm.isWindowOpen("Trade") == true else {
-            fatalError("❌ isWindowOpen: 最小化窗口仍为'打开'")
+            fatalError("❌ 测试4失败: 最小化窗口仍为'打开'")
         }
         
         // 恢复已最小化的窗口
         let result2 = wm.restoreWindow("Trade")
         guard result2 == true else {
-            fatalError("❌ restoreWindow: 已最小化窗口应返回true")
+            fatalError("❌ 测试4失败: 已最小化窗口应返回true")
         }
         guard wm.getWindowState("Trade") == .open else {
-            fatalError("❌ getWindowState: 恢复后应为.open")
+            fatalError("❌ 测试4失败: 恢复后应为.open")
         }
         
         // 对未最小化的窗口恢复
         let result3 = wm.restoreWindow("Trade")
         guard result3 == false else {
-            fatalError("❌ restoreWindow: 非最小化窗口应返回false")
+            fatalError("❌ 测试4失败: 非最小化窗口应返回false")
         }
         
         // 对不存在的窗口最小化
         let result4 = wm.minimizeWindow("Ghost")
         guard result4 == false else {
-            fatalError("❌ minimizeWindow: 不存在窗口应返回false")
+            fatalError("❌ 测试4失败: 不存在窗口应返回false")
         }
         
         // 对关闭的窗口最小化
         wm.close(windowNamed: "Trade")
         let result5 = wm.minimizeWindow("Trade")
         guard result5 == false else {
-            fatalError("❌ minimizeWindow: 已关闭窗口应返回false")
+            fatalError("❌ 测试4失败: 已关闭窗口应返回false")
         }
         
         print("✅ 测试4通过: 最小化/恢复正确")
@@ -508,31 +508,31 @@ public enum WindowManagerTests {
         // 初始顺序应为 C > B > A（zIndex 越大越前）
         let initialList = wm.listOpenWindows()
         guard initialList == ["C", "B", "A"] else {
-            fatalError("❌ listOpenWindows: 期望[C, B, A]，实际\(initialList)")
+            fatalError("❌ 测试5失败: 期望[C, B, A]，实际\(initialList)")
         }
         
         // 将 A 前置
         let result1 = wm.bringToFront("A")
         guard result1 == true else {
-            fatalError("❌ bringToFront: 已打开窗口应返回true")
+            fatalError("❌ 测试5失败: 已打开窗口应返回true")
         }
         
         let updatedList = wm.listOpenWindows()
         guard updatedList == ["A", "C", "B"] else {
-            fatalError("❌ listOpenWindows: 期望[A, C, B]，实际\(updatedList)")
+            fatalError("❌ 测试5失败: 期望[A, C, B]，实际\(updatedList)")
         }
         
         // 对不存在的窗口前置
         let result2 = wm.bringToFront("Ghost")
         guard result2 == false else {
-            fatalError("❌ bringToFront: 不存在窗口应返回false")
+            fatalError("❌ 测试5失败: 不存在窗口应返回false")
         }
         
         // 对关闭的窗口前置
         wm.close(windowNamed: "B")
         let result3 = wm.bringToFront("B")
         guard result3 == false else {
-            fatalError("❌ bringToFront: 已关闭窗口应返回false")
+            fatalError("❌ 测试5失败: 已关闭窗口应返回false")
         }
         
         print("✅ 测试5通过: 窗口前置正确")
@@ -546,7 +546,7 @@ public enum WindowManagerTests {
         
         // 空列表
         guard wm.listOpenWindows().isEmpty else {
-            fatalError("❌ listOpenWindows: 初始应为空")
+            fatalError("❌ 测试6失败: 初始应为空")
         }
         
         // 添加多个窗口
@@ -556,21 +556,21 @@ public enum WindowManagerTests {
         
         let list1 = wm.listOpenWindows().sorted()
         guard list1 == ["About", "Main", "Settings"] else {
-            fatalError("❌ listOpenWindows: 期望[About, Main, Settings]，实际\(list1)")
+            fatalError("❌ 测试6失败: 期望[About, Main, Settings]，实际\(list1)")
         }
         
         // 关闭一个窗口后
         wm.close(windowNamed: "Settings")
         let list2 = wm.listOpenWindows().sorted()
         guard list2 == ["About", "Main"] else {
-            fatalError("❌ listOpenWindows: 期望[About, Main]，实际\(list2)")
+            fatalError("❌ 测试6失败: 期望[About, Main]，实际\(list2)")
         }
         
         // 全部关闭后
         wm.close(windowNamed: "Main")
         wm.close(windowNamed: "About")
         guard wm.listOpenWindows().isEmpty else {
-            fatalError("❌ listOpenWindows: 全部关闭后应为空")
+            fatalError("❌ 测试6失败: 全部关闭后应为空")
         }
         
         print("✅ 测试6通过: 列出打开窗口正确")
@@ -596,7 +596,7 @@ public enum WindowManagerTests {
         
         let openWindows = wm.listOpenWindows()
         guard openWindows.count == windowCount else {
-            fatalError("❌ 线程安全: 期望\(windowCount)个窗口，实际\(openWindows.count)")
+            fatalError("❌ 测试7失败: 期望\(windowCount)个窗口，实际\(openWindows.count)")
         }
         
         // 并发操作已有窗口
@@ -615,7 +615,7 @@ public enum WindowManagerTests {
         
         let finalList = wm.listOpenWindows()
         guard finalList.count == windowCount else {
-            fatalError("❌ 线程安全: 并发操作后期望\(windowCount)个窗口，实际\(finalList.count)")
+            fatalError("❌ 测试7失败: 并发操作后期望\(windowCount)个窗口，实际\(finalList.count)")
         }
         
         print("✅ 测试7通过: 线程安全正确")
@@ -631,29 +631,29 @@ public enum WindowManagerTests {
         // 零宽度
         let result1 = wm.setWindowFrame("Test", x: 0, y: 0, width: 0, height: 100)
         guard result1 == false else {
-            fatalError("❌ setWindowFrame: 零宽度应返回false")
+            fatalError("❌ 测试8失败: 零宽度应返回false")
         }
         
         // 零高度
         let result2 = wm.setWindowFrame("Test", x: 0, y: 0, width: 100, height: 0)
         guard result2 == false else {
-            fatalError("❌ setWindowFrame: 零高度应返回false")
+            fatalError("❌ 测试8失败: 零高度应返回false")
         }
         
         // 负数宽高
         let result3 = wm.setWindowFrame("Test", x: 0, y: 0, width: -100, height: 100)
         guard result3 == false else {
-            fatalError("❌ setWindowFrame: 负数宽度应返回false")
+            fatalError("❌ 测试8失败: 负数宽度应返回false")
         }
         
         // 负坐标是允许的（窗口可在屏幕外）
         let result4 = wm.setWindowFrame("Test", x: -100, y: -50, width: 200, height: 150)
         guard result4 == true else {
-            fatalError("❌ setWindowFrame: 应允许负数x/y坐标")
+            fatalError("❌ 测试8失败: 应允许负数x/y坐标")
         }
         let frame = wm.getWindowFrame("Test")
         guard frame?.x == -100, frame?.y == -50 else {
-            fatalError("❌ getWindowFrame: 负数坐标未保留")
+            fatalError("❌ 测试8失败: 负数坐标未保留")
         }
         
         print("✅ 测试8通过: 无效帧处理正确")
@@ -673,26 +673,26 @@ public enum WindowManagerTests {
         wm.open(windowNamed: "KLine")
         
         guard wm.isWindowOpen("KLine") == true else {
-            fatalError("❌ isWindowOpen: 重新打开窗口应为打开")
+            fatalError("❌ 测试9失败: 重新打开窗口应为打开")
         }
         guard wm.getWindowState("KLine") == .open else {
-            fatalError("❌ getWindowState: 重新打开窗口应为.open")
+            fatalError("❌ 测试9失败: 重新打开窗口应为.open")
         }
         
         // 最小化后恢复，状态应为 open
         wm.minimizeWindow("KLine")
         wm.restoreWindow("KLine")
         guard wm.getWindowState("KLine") == .open else {
-            fatalError("❌ getWindowState: 恢复后窗口应为.open")
+            fatalError("❌ 测试9失败: 恢复后窗口应为.open")
         }
         
         // fullscreen 是 WindowState 的有效值，验证它存在且被识别
         let allStates = WindowState.allCases
         guard allStates.contains(.fullscreen) else {
-            fatalError("❌ WindowState: 应包含.fullscreen")
+            fatalError("❌ 测试9失败: 应包含.fullscreen")
         }
         guard allStates.count == 4 else {
-            fatalError("❌ WindowState: 应有4个case")
+            fatalError("❌ 测试9失败: 应有4个case")
         }
         
         print("✅ 测试9通过: 全屏状态存在且状态转换正确")

@@ -45,7 +45,7 @@ public final class SharedDataManager {
         let subs = subscriptions[key]?.values ?? []
         os_unfair_lock_unlock(&lock)
 
-        logger.info("Set value for key '\(key)'")
+        logger.info("写入键 '\(key)'")
 
         // 通知所有订阅该键的监听者（锁外调用，避免死锁）
         for subscription in subs {
@@ -65,9 +65,9 @@ public final class SharedDataManager {
         os_unfair_lock_unlock(&lock)
 
         if value != nil {
-            logger.debug("Get value for key '\(key)' (found)")
+            logger.debug("读取键 '\(key)' (已找到)")
         } else {
-            logger.debug("Get value for key '\(key)' (not found)")
+            logger.debug("读取键 '\(key)' (未找到)")
         }
 
         return value
@@ -85,13 +85,13 @@ public final class SharedDataManager {
         os_unfair_lock_unlock(&lock)
 
         if existed {
-            logger.info("Removed value for key '\(key)'")
+            logger.info("已删除键 '\(key)'")
             // 通知订阅者该键已被删除（值为 nil）
             for subscription in subs {
                 subscription.handler(nil)
             }
         } else {
-            logger.warning("Remove failed: key '\(key)' not found")
+            logger.warning("删除失败: 键 '\(key)' 未找到")
         }
 
         return existed
@@ -106,7 +106,7 @@ public final class SharedDataManager {
         let exists = storage.keys.contains(key)
         os_unfair_lock_unlock(&lock)
 
-        logger.debug("Contains check for key '\(key)': \(exists)")
+        logger.debug("包含检查: 键 '\(key)' = \(exists)")
         return exists
     }
 
@@ -126,7 +126,7 @@ public final class SharedDataManager {
         subscriptions[key, default: [:]][token] = subscription
         os_unfair_lock_unlock(&lock)
 
-        logger.info("Subscribed to key '\(key)' (token: \(token.uuidString.prefix(8))...)")
+        logger.info("已订阅键 '\(key)' (token: \(token.uuidString.prefix(8))...)")
         return token
     }
 
@@ -143,12 +143,12 @@ public final class SharedDataManager {
                     subscriptions.removeValue(forKey: key)
                 }
                 os_unfair_lock_unlock(&lock)
-                logger.info("Unsubscribed token \(token.uuidString.prefix(8))... from key '\(key)'")
+                logger.info("已取消订阅 token \(token.uuidString.prefix(8))... 键 '\(key)'")
                 return
             }
         }
         os_unfair_lock_unlock(&lock)
-        logger.warning("Unsubscribe failed: token \(token.uuidString.prefix(8))... not found")
+        logger.warning("取消失败: token \(token.uuidString.prefix(8))... 未找到")
     }
 
     // MARK: - 统计信息
@@ -181,18 +181,18 @@ public final class SharedDataManagerTests {
 
     /// 运行所有测试
     public static func runAllTests() {
-        print("=== SharedDataManager Tests ===")
+        print("=== 数据共享测试 ===")
         testBasicReadWrite()
         testRemoveAndContains()
         testSubscriptionNotification()
         testUnsubscribe()
         testThreadSafety()
-        print("\n=== All SharedDataManager Tests Passed ✅ ===")
+        print("\n=== 全部数据共享测试通过 ✅ ===")
     }
 
     // MARK: - 测试1: 数据读写
     private static func testBasicReadWrite() {
-        print("\n🧪 Test 1: Basic Read and Write")
+        print("\n🧪 测试1: 数据读写")
 
         let manager = SharedDataManager()
 
@@ -202,33 +202,33 @@ public final class SharedDataManagerTests {
         let set3 = manager.set(["theme": "dark", "language": "zh"], forKey: "config")
 
         guard set1 && set2 && set3 else {
-            fatalError("❌ Test 1 failed: set returned false")
+            fatalError("❌ 测试1失败: set返回false")
         }
 
         // 读取并验证
         guard let symbol = manager.get("symbol") as? String, symbol == "BTC-USDT" else {
-            fatalError("❌ Test 1 failed: symbol read incorrect")
+            fatalError("❌ 测试1失败: symbol读取不正确")
         }
         guard let price = manager.get("price") as? Double, price == 42_000.5 else {
-            fatalError("❌ Test 1 failed: price read incorrect")
+            fatalError("❌ 测试1失败: price读取不正确")
         }
         guard let config = manager.get("config") as? [String: String],
               config["theme"] == "dark" else {
-            fatalError("❌ Test 1 failed: config read incorrect")
+            fatalError("❌ 测试1失败: config读取不正确")
         }
 
         // 读取不存在的键
         let missing = manager.get("nonexistent")
         guard missing == nil else {
-            fatalError("❌ Test 1 failed: nonexistent key should return nil")
+            fatalError("❌ 测试1失败: 不存在的键应返回nil")
         }
 
-        print("✅ Test 1 passed: Read/write works correctly")
+        print("✅ 测试1通过: 数据读写正确")
     }
 
     // MARK: - 测试2: 删除与存在检查
     private static func testRemoveAndContains() {
-        print("\n🧪 Test 2: Remove and Contains")
+        print("\n🧪 测试2: 删除与存在检查")
 
         let manager = SharedDataManager()
         manager.set("value", forKey: "toBeRemoved")
@@ -236,41 +236,41 @@ public final class SharedDataManagerTests {
 
         // 检查存在性
         guard manager.contains("toBeRemoved") else {
-            fatalError("❌ Test 2 failed: contains should be true before removal")
+            fatalError("❌ 测试2失败: 删除前contains应为true")
         }
         guard !manager.contains("nonexistent") else {
-            fatalError("❌ Test 2 failed: contains should be false for nonexistent key")
+            fatalError("❌ 测试2失败: 不存在的键contains应为false")
         }
 
         // 删除存在的键
         let removed = manager.remove("toBeRemoved")
         guard removed else {
-            fatalError("❌ Test 2 failed: remove should return true for existing key")
+            fatalError("❌ 测试2失败: 删除存在的键应返回true")
         }
         guard !manager.contains("toBeRemoved") else {
-            fatalError("❌ Test 2 failed: key should not exist after removal")
+            fatalError("❌ 测试2失败: 删除后键不应存在")
         }
         guard manager.get("toBeRemoved") == nil else {
-            fatalError("❌ Test 2 failed: get should return nil after removal")
+            fatalError("❌ 测试2失败: 删除后get应返回nil")
         }
 
         // 删除不存在的键
         let removedAgain = manager.remove("toBeRemoved")
         guard !removedAgain else {
-            fatalError("❌ Test 2 failed: remove should return false for nonexistent key")
+            fatalError("❌ 测试2失败: 删除不存在的键应返回false")
         }
 
         // 未删除的键应仍然存在
         guard manager.contains("toBeKept") else {
-            fatalError("❌ Test 2 failed: unrelated key should still exist")
+            fatalError("❌ 测试2失败: 未被删除的键应仍然存在")
         }
 
-        print("✅ Test 2 passed: Remove and contains work correctly")
+        print("✅ 测试2通过: 删除与存在检查正确")
     }
 
     // MARK: - 测试3: 订阅通知
     private static func testSubscriptionNotification() {
-        print("\n🧪 Test 3: Subscription Notification")
+        print("\n🧪 测试3: 订阅通知")
 
         let manager = SharedDataManager()
         var receivedValue: Any?
@@ -293,10 +293,10 @@ public final class SharedDataManagerTests {
         countLock.unlock()
 
         guard count1 == 1 else {
-            fatalError("❌ Test 3 failed: expected 1 notification, got \(count1)")
+            fatalError("❌ 测试3失败: 期望1次通知，实际\(count1)")
         }
         guard val1 == "first" else {
-            fatalError("❌ Test 3 failed: expected 'first', got \(String(describing: val1))")
+            fatalError("❌ 测试3失败: 期望'first'，实际\(String(describing: val1))")
         }
 
         // 第二次 set 应再次触发通知
@@ -308,10 +308,10 @@ public final class SharedDataManagerTests {
         countLock.unlock()
 
         guard count2 == 2 else {
-            fatalError("❌ Test 3 failed: expected 2 notifications, got \(count2)")
+            fatalError("❌ 测试3失败: 期望2次通知，实际\(count2)")
         }
         guard val2 == "second" else {
-            fatalError("❌ Test 3 failed: expected 'second', got \(String(describing: val2))")
+            fatalError("❌ 测试3失败: 期望'second'，实际\(String(describing: val2))")
         }
 
         // 修改其他键不应触发此订阅
@@ -322,7 +322,7 @@ public final class SharedDataManagerTests {
         countLock.unlock()
 
         guard count3 == 2 else {
-            fatalError("❌ Test 3 failed: unrelated key change should not trigger notification, got \(count3)")
+            fatalError("❌ 测试3失败: 无关键变化不应触发通知，实际\(count3)")
         }
 
         // 删除应触发通知（值为 nil）
@@ -334,19 +334,19 @@ public final class SharedDataManagerTests {
         countLock.unlock()
 
         guard count4 == 3 else {
-            fatalError("❌ Test 3 failed: remove should trigger notification, got \(count4)")
+            fatalError("❌ 测试3失败: 删除应触发通知，实际\(count4)")
         }
         guard val4 == nil else {
-            fatalError("❌ Test 3 failed: remove notification should pass nil, got \(String(describing: val4))")
+            fatalError("❌ 测试3失败: 删除通知应传递nil，实际\(String(describing: val4))")
         }
 
         manager.unsubscribe(token)
-        print("✅ Test 3 passed: Subscription notifications work correctly")
+        print("✅ 测试3通过: 订阅通知正确")
     }
 
     // MARK: - 测试4: 取消订阅
     private static func testUnsubscribe() {
-        print("\n🧪 Test 4: Unsubscribe")
+        print("\n🧪 测试4: 取消订阅")
 
         let manager = SharedDataManager()
         var received = false
@@ -362,18 +362,18 @@ public final class SharedDataManagerTests {
         manager.set("newValue", forKey: "unsubKey")
 
         guard !received else {
-            fatalError("❌ Test 4 failed: unsubscribed handler should not be called")
+            fatalError("❌ 测试4失败: 已取消的订阅不应被调用")
         }
 
         // 取消不存在的令牌不应崩溃
         manager.unsubscribe(UUID())
 
-        print("✅ Test 4 passed: Unsubscribe works correctly")
+        print("✅ 测试4通过: 取消订阅正确")
     }
 
     // MARK: - 测试5: 线程安全
     private static func testThreadSafety() {
-        print("\n🧪 Test 5: Thread Safety (100 concurrent writers + readers)")
+        print("\n🧪 测试5: 线程安全 (100并发读写)")
 
         let manager = SharedDataManager()
         let group = DispatchGroup()
@@ -415,13 +415,13 @@ public final class SharedDataManagerTests {
 
         // 验证写入结果
         guard manager.keyCount == iterations else {
-            fatalError("❌ Test 5 failed: expected \(iterations) keys, got \(manager.keyCount)")
+            fatalError("❌ 测试5失败: 期望\(iterations)个键，实际\(manager.keyCount)")
         }
 
         // 验证订阅结果
         let subCount = manager.subscriberCount(for: "sharedKey")
         guard subCount == iterations else {
-            fatalError("❌ Test 5 failed: expected \(iterations) subscribers, got \(subCount)")
+            fatalError("❌ 测试5失败: 期望\(iterations)个订阅者，实际\(subCount)")
         }
 
         // 并发取消订阅
@@ -441,9 +441,9 @@ public final class SharedDataManagerTests {
 
         let remainingSubs = manager.subscriberCount(for: "sharedKey")
         guard remainingSubs == 0 else {
-            fatalError("❌ Test 5 failed: expected 0 subscribers after unsubscribe, got \(remainingSubs)")
+            fatalError("❌ 测试5失败: 取消订阅后应无订阅者，实际\(remainingSubs)")
         }
 
-        print("✅ Test 5 passed: Thread safety verified (\(iterations) concurrent ops)")
+        print("✅ 测试5通过: 线程安全验证 (\(iterations)并发操作)")
     }
 }

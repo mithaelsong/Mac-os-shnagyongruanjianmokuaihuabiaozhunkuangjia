@@ -462,8 +462,7 @@ public final class EventBusTests {
     
     // MARK: - 测试8: 兼容API
     private static func testCompatibleAPI() {
-        print("
-🧪 测试8: 兼容Notification.Name API")
+        print("\n🧪 测试8: 兼容Notification.Name API")
         
         let bus = EventBus()
         var received = false

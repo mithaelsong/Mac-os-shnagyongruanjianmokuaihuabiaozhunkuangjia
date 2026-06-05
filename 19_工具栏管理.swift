@@ -3,7 +3,7 @@
 // 优先级: P2
 
 import AppKit
-import os.lock
+import os
 
 // MARK: - 工具栏项定义
 /// 工具栏项定义结构体
@@ -52,7 +52,7 @@ public final class ToolbarManager: NSObject, NSToolbarDelegate {
         window.toolbar = toolbar
         self.toolbar = toolbar
 
-        logger.info("Setup toolbar for window: \(window.title)")
+        logger.info("已设置窗口工具栏: \(window.title)")
     }
 
     // MARK: - 注册工具栏项
@@ -63,7 +63,7 @@ public final class ToolbarManager: NSObject, NSToolbarDelegate {
     ///   - module: 所属模块名称（不能为空）
     public func registerItem(_ definition: ToolbarItemDefinition, for module: String) {
         guard !module.isEmpty, !definition.identifier.isEmpty else {
-            logger.warning("registerItem failed: empty module or identifier")
+            logger.warning("registerItem失败: 模块名或标识符为空")
             return
         }
 
@@ -77,7 +77,7 @@ public final class ToolbarManager: NSObject, NSToolbarDelegate {
             toolbar.insertItem(withItemIdentifier: NSToolbarItem.Identifier(definition.identifier), at: items.count - 1)
         }
 
-        logger.info("Registered toolbar item '\(definition.identifier)' for module: \(module)")
+        logger.info("已注册工具栏项 '\(definition.identifier)' 模块: \(module)")
     }
 
     // MARK: - 移除工具栏项
@@ -102,7 +102,7 @@ public final class ToolbarManager: NSObject, NSToolbarDelegate {
         }
 
         if !ids.isEmpty {
-            logger.info("Unregistered \(ids.count) toolbar item(s) for module: \(module)")
+            logger.info("已注销模块 \(module) 的 \(ids.count) 个工具栏项")
         }
     }
 
@@ -121,7 +121,7 @@ public final class ToolbarManager: NSObject, NSToolbarDelegate {
             }
         }
 
-        logger.info("Unregistered all toolbar items (count: \(ids.count))")
+        logger.info("已注销所有工具栏项 (数量: \(ids.count))")
     }
 
     // MARK: - 查询
@@ -202,7 +202,7 @@ public final class ToolbarManager: NSObject, NSToolbarDelegate {
 
         definition?.action()
 
-        logger.debug("Toolbar action triggered for item: \(id)")
+        logger.debug("工具栏动作已触发: \(id)")
     }
 }
 
@@ -213,18 +213,18 @@ public enum ToolbarManagerTests {
 
     /// 运行所有测试
     public static func run() {
-        print("=== ToolbarManager Tests ===")
+        print("=== 工具栏管理器测试 ===")
         testRegisterAndUnregister()
         testUnregisterAll()
         testQuery()
         testModuleIsolation()
         testEmptyInput()
-        print("\n=== All ToolbarManager Tests Passed ✅ ===")
+        print("\n=== 全部工具栏管理器测试通过 ✅ ===")
     }
 
     // MARK: - 测试1: 注册/注销
     static func testRegisterAndUnregister() {
-        print("\n🧪 Test 1: Register & Unregister")
+        print("\n🧪 测试1: 注册与注销")
 
         let tm = ToolbarManager()
 
@@ -239,30 +239,30 @@ public enum ToolbarManagerTests {
         _ = actionCalled // action 闭包正确捕获
 
         guard tm.allItemIdentifiers().contains("test.action") else {
-            fatalError("❌ allItemIdentifiers should contain 'test.action'")
+            fatalError("❌ 测试1失败: allItemIdentifiers应包含'test.action'")
         }
         guard tm.toolbarItems(for: "TestModule").contains("test.action") else {
-            fatalError("❌ toolbarItems should contain 'test.action'")
+            fatalError("❌ 测试1失败: toolbarItems应包含'test.action'")
         }
         guard tm.definition(for: "test.action") != nil else {
-            fatalError("❌ definition should not be nil")
+            fatalError("❌ 测试1失败: definition不应为nil")
         }
 
         tm.unregisterItems(for: "TestModule")
 
         guard !tm.allItemIdentifiers().contains("test.action") else {
-            fatalError("❌ allItemIdentifiers should not contain 'test.action' after unregister")
+            fatalError("❌ 测试1失败: 注销后allItemIdentifiers不应包含'test.action'")
         }
         guard tm.toolbarItems(for: "TestModule").isEmpty else {
-            fatalError("❌ toolbarItems should be empty after unregister")
+            fatalError("❌ 测试1失败: 注销后toolbarItems应为空")
         }
 
-        print("✅ Test 1 passed: register/unregister correct")
+        print("✅ 测试1通过: 注册/注销正确")
     }
 
     // MARK: - 测试2: 注销全部
     static func testUnregisterAll() {
-        print("\n🧪 Test 2: Unregister All")
+        print("\n🧪 测试2: 注销全部")
 
         let tm = ToolbarManager()
 
@@ -270,59 +270,59 @@ public enum ToolbarManagerTests {
         tm.registerItem(ToolbarItemDefinition(identifier: "b", label: "B", action: {}), for: "M2")
 
         guard tm.allItemIdentifiers().count == 2 else {
-            fatalError("❌ Expected 2 items before unregisterAll")
+            fatalError("❌ 测试2失败: 注销前期望2个项")
         }
 
         tm.unregisterAllItems()
 
         guard tm.allItemIdentifiers().isEmpty else {
-            fatalError("❌ allItemIdentifiers should be empty after unregisterAll")
+            fatalError("❌ 测试2失败: unregisterAll后allItemIdentifiers应为空")
         }
         guard tm.toolbarItems(for: "M1").isEmpty else {
-            fatalError("❌ M1 items should be empty after unregisterAll")
+            fatalError("❌ 测试2失败: unregisterAll后M1项应为空")
         }
         guard tm.toolbarItems(for: "M2").isEmpty else {
-            fatalError("❌ M2 items should be empty after unregisterAll")
+            fatalError("❌ 测试2失败: unregisterAll后M2项应为空")
         }
 
-        print("✅ Test 2 passed: unregisterAll correct")
+        print("✅ 测试2通过: 注销全部正确")
     }
 
     // MARK: - 测试3: 查询
     static func testQuery() {
-        print("\n🧪 Test 3: Query")
+        print("\n🧪 测试3: 查询")
 
         let tm = ToolbarManager()
 
         guard tm.allItemIdentifiers().isEmpty else {
-            fatalError("❌ allItemIdentifiers should be empty initially")
+            fatalError("❌ 测试3失败: allItemIdentifiers初始应为空")
         }
         guard tm.toolbarItems(for: "Ghost").isEmpty else {
-            fatalError("❌ toolbarItems for non-existent module should be empty")
+            fatalError("❌ 测试3失败: 不存在模块的toolbarItems应为空")
         }
         guard tm.definition(for: "ghost") == nil else {
-            fatalError("❌ definition for non-existent item should be nil")
+            fatalError("❌ 测试3失败: 不存在项的definition应为nil")
         }
 
         let def = ToolbarItemDefinition(identifier: "q1", label: "Q1", tooltip: "Tooltip", action: {})
         tm.registerItem(def, for: "QueryModule")
 
         guard let fetched = tm.definition(for: "q1") else {
-            fatalError("❌ definition should not be nil")
+            fatalError("❌ 测试1失败: definition不应为nil")
         }
         guard fetched.label == "Q1" else {
-            fatalError("❌ label mismatch")
+            fatalError("❌ 测试3失败: 标签不匹配")
         }
         guard fetched.tooltip == "Tooltip" else {
-            fatalError("❌ tooltip mismatch")
+            fatalError("❌ 测试3失败: 工具提示不匹配")
         }
 
-        print("✅ Test 3 passed: query correct")
+        print("✅ 测试3通过: 查询正确")
     }
 
     // MARK: - 测试4: 模块隔离
     static func testModuleIsolation() {
-        print("\n🧪 Test 4: Module Isolation")
+        print("\n🧪 测试4: 模块隔离")
 
         let tm = ToolbarManager()
 
@@ -331,30 +331,30 @@ public enum ToolbarManagerTests {
         tm.registerItem(ToolbarItemDefinition(identifier: "m2.a", label: "M2A", action: {}), for: "Module2")
 
         guard tm.toolbarItems(for: "Module1").count == 2 else {
-            fatalError("❌ Module1 should have 2 items")
+            fatalError("❌ 测试4失败: Module1应有2个项")
         }
         guard tm.toolbarItems(for: "Module2").count == 1 else {
-            fatalError("❌ Module2 should have 1 item")
+            fatalError("❌ 测试4失败: Module2应有1个项")
         }
 
         tm.unregisterItems(for: "Module1")
 
         guard tm.toolbarItems(for: "Module1").isEmpty else {
-            fatalError("❌ Module1 should be empty after unregister")
+            fatalError("❌ 测试4失败: 注销后Module1应为空")
         }
         guard tm.toolbarItems(for: "Module2").count == 1 else {
-            fatalError("❌ Module2 should still have 1 item")
+            fatalError("❌ 测试4失败: Module2应仍有1个项")
         }
         guard tm.allItemIdentifiers().contains("m2.a") else {
-            fatalError("❌ m2.a should still exist")
+            fatalError("❌ 测试4失败: m2.a应仍存在")
         }
 
-        print("✅ Test 4 passed: module isolation correct")
+        print("✅ 测试4通过: 模块隔离正确")
     }
 
     // MARK: - 测试5: 空输入
     static func testEmptyInput() {
-        print("\n🧪 Test 5: Empty Input")
+        print("\n🧪 测试5: 空输入")
 
         let tm = ToolbarManager()
         let countBefore = tm.allItemIdentifiers().count
@@ -364,9 +364,9 @@ public enum ToolbarManagerTests {
 
         let countAfter = tm.allItemIdentifiers().count
         guard countBefore == countAfter else {
-            fatalError("❌ Empty module or identifier should not be registered")
+            fatalError("❌ 测试5失败: 空模块名或标识符不应注册")
         }
 
-        print("✅ Test 5 passed: empty input handled correctly")
+        print("✅ 测试5通过: 空输入处理正确")
     }
 }

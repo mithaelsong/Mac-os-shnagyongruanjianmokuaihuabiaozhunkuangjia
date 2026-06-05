@@ -173,8 +173,6 @@ public final class ModuleWindowManager {
 
 // MARK: - Test Code
 
-#if DEBUG
-
 /// 多窗口管理模块测试
 /// 运行方式：在 Swift 项目 Debug 模式下编译，或使用 swift 命令行运行
 public func runModuleWindowManagerTests() {
@@ -183,7 +181,7 @@ public func runModuleWindowManagerTests() {
     let manager = ModuleWindowManager.shared
     
     // 测试1: 打开窗口
-    print("\n[Test 1] 打开窗口")
+    print("\n🧪 测试1: 打开窗口")
     let view1 = NSView(frame: NSRect(x: 0, y: 0, width: 400, height: 300))
     let result1 = manager.openWindow(
         identifier: "test-window-1",
@@ -193,15 +191,15 @@ public func runModuleWindowManagerTests() {
         frame: NSRect(x: 100, y: 100, width: 400, height: 300)
     )
     guard result1 == true else {
-        fatalError("[FAIL] 打开窗口失败: 返回 false")
+        fatalError("❌ 测试1失败: 打开窗口返回false")
     }
     guard manager.openWindows.count == 1 else {
-        fatalError("[FAIL] 窗口列表数量应为1，实际为 \(manager.openWindows.count)")
+        fatalError("❌ 测试1失败: 窗口列表数量应为1，实际为\(manager.openWindows.count)")
     }
-    print("[PASS] 打开窗口成功")
+    print("✅ 测试1通过: 打开窗口成功")
     
     // 测试2: 重复标识符打开失败
-    print("\n[Test 2] 重复标识符打开失败")
+    print("\n🧪 测试2: 重复标识符打开失败")
     let result2 = manager.openWindow(
         identifier: "test-window-1",
         title: "重复窗口",
@@ -209,29 +207,29 @@ public func runModuleWindowManagerTests() {
         moduleName: "M1_行情"
     )
     guard result2 == false else {
-        fatalError("[FAIL] 重复标识符应返回 false，实际返回 true")
+        fatalError("❌ 测试2失败: 重复标识符应返回false，实际返回true")
     }
-    print("[PASS] 重复标识符正确拒绝")
+    print("✅ 测试2通过: 重复标识符正确拒绝")
     
     // 测试3: 按键查询
-    print("\n[Test 3] 按键查询窗口")
+    print("\n🧪 测试3: 按键查询窗口")
     let window = manager.getWindow(identifier: "test-window-1")
     guard window != nil else {
-        fatalError("[FAIL] 应能查询到 test-window-1")
+        fatalError("❌ 测试3失败: 应能查询到test-window-1")
     }
     guard window?.identifier == "test-window-1" else {
-        fatalError("[FAIL] 查询结果标识符不匹配")
+        fatalError("❌ 测试3失败: 查询结果标识符不匹配")
     }
     guard window?.title == "测试窗口1" else {
-        fatalError("[FAIL] 查询结果标题不匹配")
+        fatalError("❌ 测试3失败: 查询结果标题不匹配")
     }
     guard window?.moduleName == "M1_行情" else {
-        fatalError("[FAIL] 查询结果模块名不匹配")
+        fatalError("❌ 测试3失败: 查询结果模块名不匹配")
     }
-    print("[PASS] 按键查询正确")
+    print("✅ 测试3通过: 按键查询正确")
     
     // 测试4: 打开多个窗口（同模块+不同模块）
-    print("\n[Test 4] 打开多个窗口")
+    print("\n🧪 测试4: 打开多个窗口")
     let result3 = manager.openWindow(
         identifier: "test-window-2",
         title: "测试窗口2",
@@ -245,51 +243,51 @@ public func runModuleWindowManagerTests() {
         moduleName: "M2_交易"
     )
     guard result3 == true && result4 == true else {
-        fatalError("[FAIL] 打开多个窗口失败")
+        fatalError("❌ 测试4失败: 打开多个窗口失败")
     }
     guard manager.openWindows.count == 3 else {
-        fatalError("[FAIL] 窗口总数应为3，实际为 \(manager.openWindows.count)")
+        fatalError("❌ 测试4失败: 窗口总数应为3，实际为\(manager.openWindows.count)")
     }
-    print("[PASS] 多窗口打开成功")
+    print("✅ 测试4通过: 多窗口打开成功")
     
     // 测试5: 关闭单个窗口
-    print("\n[Test 5] 关闭单个窗口")
+    print("\n🧪 测试5: 关闭单个窗口")
     let closeResult = manager.closeWindow(identifier: "test-window-1")
     guard closeResult == true else {
-        fatalError("[FAIL] 关闭窗口应返回 true")
+        fatalError("❌ 测试5失败: 关闭窗口应返回true")
     }
     guard manager.getWindow(identifier: "test-window-1") == nil else {
-        fatalError("[FAIL] 关闭后应查询不到窗口")
+        fatalError("❌ 测试5失败: 关闭后应查询不到窗口")
     }
     guard manager.openWindows.count == 2 else {
-        fatalError("[FAIL] 关闭后窗口数应为2，实际为 \(manager.openWindows.count)")
+        fatalError("❌ 测试5失败: 关闭后窗口数应为2，实际为\(manager.openWindows.count)")
     }
-    print("[PASS] 关闭单个窗口成功")
+    print("✅ 测试5通过: 关闭单个窗口成功")
     
     // 测试6: 关闭指定模块的所有窗口
-    print("\n[Test 6] 关闭指定模块的所有窗口")
+    print("\n🧪 测试6: 关闭指定模块的所有窗口")
     let closedCount = manager.closeAllWindows(moduleName: "M1_行情")
     guard closedCount == 1 else {
-        fatalError("[FAIL] 应关闭1个M1_行情窗口，实际关闭 \(closedCount)")
+        fatalError("❌ 测试6失败: 应关闭1个M1_行情窗口，实际关闭\(closedCount)")
     }
     guard manager.openWindows.count == 1 else {
-        fatalError("[FAIL] 关闭M1_行情后窗口数应为1，实际为 \(manager.openWindows.count)")
+        fatalError("❌ 测试6失败: 关闭M1_行情后窗口数应为1，实际为\(manager.openWindows.count)")
     }
     guard manager.getWindow(identifier: "test-window-3") != nil else {
-        fatalError("[FAIL] M2_交易窗口不应被关闭")
+        fatalError("❌ 测试6失败: M2_交易窗口不应被关闭")
     }
-    print("[PASS] 按模块关闭成功")
+    print("✅ 测试6通过: 按模块关闭成功")
     
     // 测试7: 关闭不存在的窗口
-    print("\n[Test 7] 关闭不存在的窗口")
+    print("\n🧪 测试7: 关闭不存在的窗口")
     let result5 = manager.closeWindow(identifier: "non-existent")
     guard result5 == false else {
-        fatalError("[FAIL] 关闭不存在的窗口应返回 false")
+        fatalError("❌ 测试7失败: 关闭不存在的窗口应返回false")
     }
-    print("[PASS] 关闭不存在窗口正确返回 false")
+    print("✅ 测试7通过: 关闭不存在窗口正确返回false")
     
     // 测试8: 窗口列表按打开顺序排列
-    print("\n[Test 8] 窗口列表按打开顺序排列")
+    print("\n🧪 测试8: 窗口列表按打开顺序排列")
     manager.closeAllWindows(moduleName: "M2_交易")
     
     let ids = ["win-a", "win-b", "win-c"]
@@ -301,37 +299,36 @@ public func runModuleWindowManagerTests() {
             moduleName: "M3_测试"
         )
         guard result == true else {
-            fatalError("[FAIL] 打开窗口 \(id) 失败")
+            fatalError("❌ 测试8失败: 打开窗口\(id)失败")
         }
     }
     
     let windows = manager.openWindows
     guard windows.count == 3 else {
-        fatalError("[FAIL] 窗口列表应为3个，实际 \(windows.count)")
+        fatalError("❌ 测试8失败: 窗口列表应为3个，实际\(windows.count)")
     }
     guard windows[0].identifier == "win-a" else {
-        fatalError("[FAIL] 第1个窗口应为 win-a，实际 \(windows[0].identifier)")
+        fatalError("❌ 测试8失败: 第1个窗口应为win-a，实际\(windows[0].identifier)")
     }
     guard windows[1].identifier == "win-b" else {
-        fatalError("[FAIL] 第2个窗口应为 win-b，实际 \(windows[1].identifier)")
+        fatalError("❌ 测试8失败: 第2个窗口应为win-b，实际\(windows[1].identifier)")
     }
     guard windows[2].identifier == "win-c" else {
-        fatalError("[FAIL] 第3个窗口应为 win-c，实际 \(windows[2].identifier)")
+        fatalError("❌ 测试8失败: 第3个窗口应为win-c，实际\(windows[2].identifier)")
     }
-    print("[PASS] 窗口顺序正确")
+    print("✅ 测试8通过: 窗口顺序正确")
     
     // 测试9: 关闭所有窗口（清理）
-    print("\n[Test 9] 关闭所有窗口")
+    print("\n🧪 测试9: 关闭所有窗口")
     let totalClosed = manager.closeAllWindows(moduleName: "M3_测试")
     guard totalClosed == 3 else {
-        fatalError("[FAIL] 应关闭3个窗口，实际关闭 \(totalClosed)")
+        fatalError("❌ 测试9失败: 应关闭3个窗口，实际关闭\(totalClosed)")
     }
     guard manager.openWindows.isEmpty else {
-        fatalError("[FAIL] 全部关闭后窗口列表应为空")
+        fatalError("❌ 测试9失败: 全部关闭后窗口列表应为空")
     }
-    print("[PASS] 全部关闭成功")
+    print("✅ 测试9通过: 全部关闭成功")
     
-    print("\n=== All Tests Passed ===")
+    print("\n=== 全部模块窗口管理器测试通过 ✅ ===")
 }
 
-#endif

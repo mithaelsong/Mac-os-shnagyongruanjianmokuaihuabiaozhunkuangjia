@@ -227,7 +227,7 @@ public enum MenuManagerTests {
         // 重复注销不应崩溃
         mm.unregisterModuleMenu(for: "TestModule")
 
-        print("✅ Test 1 passed: register/unregister correct")
+        print("✅ 测试1通过: 注册/注销正确")
     }
 
     // MARK: - 测试2: 注销全部
@@ -253,7 +253,7 @@ public enum MenuManagerTests {
             fatalError("❌ 注销失败: mainMenu注销后应为空All")
         }
 
-        print("✅ Test 2 passed: unregisterAll correct")
+        print("✅ 测试2通过: 注销所有正确")
     }
 
     // MARK: - 测试3: 添加/移除菜单项
@@ -285,7 +285,7 @@ public enum MenuManagerTests {
         // 向未注册模块添加项不应崩溃
         mm.addMenuItem(item, to: "NonExistent")
 
-        print("✅ Test 3 passed: add/remove menu item correct")
+        print("✅ 测试3通过: 添加/移除菜单项正确")
     }
 
     // MARK: - 测试4: 菜单项查询
@@ -315,7 +315,7 @@ public enum MenuManagerTests {
             fatalError("❌ 查询失败: 期望2个菜单项，实际\(items.count)")
         }
 
-        print("✅ Test 4 passed: menu items query correct")
+        print("✅ 测试4通过: 菜单项查询正确")
     }
 
     // MARK: - 测试5: 创建菜单项
@@ -335,7 +335,7 @@ public enum MenuManagerTests {
             fatalError("❌ 测试失败: 目标不匹配")
         }
 
-        print("✅ Test 5 passed: create menu item correct")
+        print("✅ 测试5通过: 创建菜单项正确")
     }
 
     // MARK: - 测试6: 空模块名
@@ -356,6 +356,6 @@ public enum MenuManagerTests {
             fatalError("❌ 边界失败: mainMenu应保持为空")
         }
 
-        print("✅ Test 6 passed: empty module name handled correctly")
+        print("✅ 测试6通过: 空模块名处理正确")
     }
 }

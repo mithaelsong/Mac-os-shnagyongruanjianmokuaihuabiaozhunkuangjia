@@ -15,11 +15,11 @@ public enum ModuleAccessorError: Error, CustomStringConvertible {
     public var description: String {
         switch self {
         case .moduleNotLoaded(let name):
-            return "Module not loaded: \(name)"
+            return "模块未加载: \(name)"
         case .serviceNotFound(let module, let service):
-            return "Module \(module) does not provide service: \(service)"
+            return "模块 \(module) 未提供服务: \(service)"
         case .typeMismatch(let expected, let actual):
-            return "Type mismatch: expected \(expected), actual \(actual)"
+            return "类型不匹配: 期望 \(expected), 实际 \(actual)"
         }
     }
 }
@@ -77,7 +77,7 @@ public final class ModuleAccessor: Sendable {
         os_unfair_lock_lock(&lockStorage.lock)
         defer { os_unfair_lock_unlock(&lockStorage.lock) }
 
-        logger.debug("Getting module: \(name)")
+        logger.debug("获取模块: \(name)")
         return registry.getModule(named: name)
     }
 
@@ -90,15 +90,15 @@ public final class ModuleAccessor: Sendable {
         os_unfair_lock_lock(&lockStorage.lock)
         defer { os_unfair_lock_unlock(&lockStorage.lock) }
 
-        logger.debug("Type-safe get module: \(name) as \(String(describing: T.self))")
+        logger.debug("类型安全获取模块: \(name) 为 \(String(describing: T.self))")
 
         guard let module = registry.getModule(named: name) else {
-            logger.warning("Module \(name) not loaded, cannot get")
+            logger.warning("模块 \(name) 未加载，无法获取")
             return nil
         }
 
         guard let typed = module as? T else {
-            logger.error("Module \(name) type mismatch: expected \(String(describing: T.self)), actual \(type(of: module))")
+            logger.error("模块 \(name) 类型不匹配: 期望 \(String(describing: T.self)), 实际 \(type(of: module))")
             return nil
         }
 
@@ -117,11 +117,11 @@ public final class ModuleAccessor: Sendable {
         os_unfair_lock_lock(&lockStorage.lock)
         defer { os_unfair_lock_unlock(&lockStorage.lock) }
 
-        logger.debug("Getting service: \(module).\(service)")
+        logger.debug("获取服务: \(module).\(service)")
 
         // Check if module is loaded
         guard registry.isLoaded(name: module) else {
-            logger.warning("Cannot get service \(module).\(service): module not loaded")
+            logger.warning("无法获取服务 \(module).\(service): 模块未加载")
             return nil
         }
 
@@ -133,9 +133,9 @@ public final class ModuleAccessor: Sendable {
         )
 
         if result == nil {
-            logger.warning("Service \(module).\(service) not found")
+            logger.warning("服务 \(module).\(service) 未找到")
         } else {
-            logger.debug("Got service \(module).\(service)")
+            logger.debug("已获取服务 \(module).\(service)")
         }
 
         return result
@@ -152,11 +152,11 @@ public final class ModuleAccessor: Sendable {
         os_unfair_lock_lock(&lockStorage.lock)
         defer { os_unfair_lock_unlock(&lockStorage.lock) }
 
-        logger.debug("Type-safe get service: \(module).\(service) as \(String(describing: T.self))")
+        logger.debug("类型安全获取服务: \(module).\(service) 为 \(String(describing: T.self))")
 
         // Check if module is loaded
         guard registry.isLoaded(name: module) else {
-            logger.warning("Cannot get service \(module).\(service): module not loaded")
+            logger.warning("无法获取服务 \(module).\(service): 模块未加载")
             return nil
         }
 
@@ -168,9 +168,9 @@ public final class ModuleAccessor: Sendable {
         )
 
         if result == nil {
-            logger.warning("Type-safe service \(module).\(service) as \(String(describing: T.self)) not found")
+            logger.warning("类型安全服务 \(module).\(service) 为 \(String(describing: T.self)) 未找到")
         } else {
-            logger.debug("Got type-safe service \(module).\(service)")
+            logger.debug("已获取类型安全服务 \(module).\(service)")
         }
 
         return result
@@ -186,7 +186,7 @@ public final class ModuleAccessor: Sendable {
         defer { os_unfair_lock_unlock(&lockStorage.lock) }
 
         let loaded = registry.isLoaded(name: name)
-        logger.debug("Check module loaded: \(name) = \(loaded)")
+        logger.debug("检查模块加载状态: \(name) = \(loaded)")
         return loaded
     }
 
@@ -200,7 +200,7 @@ public final class ModuleAccessor: Sendable {
         defer { os_unfair_lock_unlock(&lockStorage.lock) }
 
         let started = starter.isStarted(name)
-        logger.debug("Check module started: \(name) = \(started)")
+        logger.debug("检查模块启动状态: \(name) = \(started)")
         return started
     }
 }
@@ -247,6 +247,7 @@ public enum ModuleAccessorTests {
 
     /// Run all tests
     public static func runAllTests() {
+        print("=== 功能11测试 ===")
         cleanup()
         testGetModule()
         cleanup()
@@ -472,7 +473,7 @@ public enum ModuleAccessorTests {
         }
 
         // Start module
-        let result = starter.startModule(named: "StartCheckModule")
+        let result = starter.startModule("StartCheckModule")
         guard result.isSuccess else {
             fatalError("❌ 测试6失败: 模块启动失败: \(result)")
         }

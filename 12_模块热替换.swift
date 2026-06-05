@@ -47,23 +47,23 @@ public enum HotSwapFailureReason: Error, CustomStringConvertible {
     public var description: String {
         switch self {
         case .moduleNotLoaded(let name):
-            return "Module \(name) not loaded, cannot hot swap"
+            return "模块 \(name) 未加载，无法热替换"
         case .unloadFailed(let name, let error):
-            return "Failed to unload old module \(name): \(error)"
+            return "卸载旧模块 \(name) 失败: \(error)"
         case .newModuleNotFound(let path):
-            return "New module path does not exist: \(path)"
+            return "新模块路径不存在: \(path)"
         case .newModuleInvalid(let name, let reason):
-            return "New module \(name) invalid: \(reason)"
+            return "新模块 \(name) 无效: \(reason)"
         case .loadFailed(let name, let error):
-            return "Failed to load new module \(name): \(error)"
+            return "加载新模块 \(name) 失败: \(error)"
         case .startFailed(let name, let error):
-            return "Failed to start new module \(name): \(error)"
+            return "启动新模块 \(name) 失败: \(error)"
         case .stateRestoreFailed(let name, let error):
-            return "Failed to restore state for module \(name): \(error)"
+            return "恢复模块 \(name) 状态失败: \(error)"
         case .dependencyBroken(let name, let missing):
-            return "Module \(name) missing dependencies: \(missing.joined(separator: ", "))"
+            return "模块 \(name) 缺少依赖: \(missing.joined(separator: ", "))"
         case .rollbackFailed(let name, let originalError):
-            return "Failed to rollback module \(name) (original error: \(originalError))"
+            return "回滚模块 \(name) 失败 (原始错误: \(originalError))"
         }
     }
 }
